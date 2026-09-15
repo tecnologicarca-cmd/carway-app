@@ -952,3 +952,113 @@ Viagem.recargasDaRotaAtual = function () {
   UI.load(true,'Buscando recargas no trajeto…');
   comPrazo(api('recargasNasParadas',alvos,15000),50000).then(function(grupos){UI.load(false);var todas=[];(grupos||[]).forEach(function(g){(g.recargas||[]).forEach(function(x){if(!todas.some(function(y){return y.placeId===x.placeId;}))todas.push(x);});});Viagem.mostrarRecargas({recargas:todas,raioUsado:15});}).catch(function(e){UI.load(false);UI.toast(e.message||'Falha ao buscar recargas','erro');});
 };
+
+/* ===========================================================
+   CARWAY v14.1
+   Planejador adaptativo para veículos elétricos
+   =========================================================== */
+
+Viagem.configurarVeiculoPlanejador = function(id){
+
+  var v = U.veic(id) || U.veicAtual();
+
+  if(!v) return;
+
+  var eletrico =
+    String(v.combustivel || '')
+      .toLowerCase()
+      .indexOf('elétr') >= 0 ||
+    String(v.combustivel || '')
+      .toLowerCase()
+      .indexOf('eletr') >= 0;
+
+  var km = $('pKmL');
+  var tanque = $('pTanque');
+
+  if(eletrico){
+
+    if(km){
+      var media =
+        Number(
+          (v.consumo || {}).mediaEficiencia ||
+          (v.consumo || {}).mediaKmL ||
+          0
+        );
+
+      if(media > 0){
+        km.value = media;
+      }
+    }
+
+    if(tanque){
+      tanque.value = Number(v.tanque || 0) || '';
+    }
+
+    var lbl;
+
+    lbl = km && km.parentNode
+      ? km.parentNode.querySelector('label')
+      : null;
+
+    if(lbl){
+      lbl.textContent = 'Eficiência (km/kWh)';
+    }
+
+    lbl = tanque && tanque.parentNode
+      ? tanque.parentNode.querySelector('label')
+      : null;
+
+    if(lbl){
+      lbl.textContent = 'Capacidade da bateria (kWh)';
+    }
+
+    lbl = $('pPreco');
+
+    if(lbl && lbl.parentNode){
+      var l = lbl.parentNode.querySelector('label');
+
+      if(l){
+        l.textContent = 'Preço da energia (R$/kWh)';
+      }
+    }
+
+  }
+
+  if(typeof Viagem.previewAutonomia === 'function'){
+    Viagem.previewAutonomia();
+  }
+};
+
+(function(){
+
+  var abrirOriginal = Viagem.abrirPlanejador;
+
+  Viagem.abrirPlanejador = function(){
+
+    abrirOriginal();
+
+    setTimeout(function(){
+
+      var veic = U.veicAtual();
+
+      if(veic){
+        Viagem.configurarVeiculoPlanejador(veic.id);
+      }
+
+      var originalTroca = UI._aoTrocarVeic;
+
+      UI._aoTrocarVeic = function(id){
+
+        if(typeof originalTroca === 'function'){
+          originalTroca(id);
+        }
+
+        Viagem.configurarVeiculoPlanejador(id);
+
+      };
+
+    },150);
+
+  };
+
+})();
