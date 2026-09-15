@@ -5,7 +5,7 @@
    FIPE, documentos com vencimento, alertas persistentes, depreciacao.
    ===================================================================== */
 
-var VERSAO_FRONT = 13;
+var VERSAO_FRONT = 14;
 
 function dbVazio() {
   return { veiculos:[], viagens:[], despesas:[], abastecimentos:[], manutencoes:[], planos:[],
@@ -2663,9 +2663,7 @@ var Geo = {
     Geo.timers[id] = setTimeout(function () { Geo.buscar(id, txt); }, 550);
   },
   buscar: function (id, txt) {
-    Geo.fila = (Geo.fila || Promise.resolve()).catch(function () {
-      return null;
-    }).then(function () {
+    Geo.fila = (Geo.fila || Promise.resolve()).then(function () {
       if (UI.v(id) !== txt) return;
       Geo.ultimo[id] = txt;
       return comPrazo(api('sugerirLocais', txt), 15000, 'demorou').then(function (r) {
@@ -5604,6 +5602,11 @@ App.abrirViagensMenu = function () {
         '<div><b>Buscar postos</b><small>Num raio à sua escolha</small></div>' +
         '<span class="ms seta">chevron_right</span>' +
       '</button>' +
+      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaRecargas()">' +
+        '<span class="ms">ev_station</span>' +
+        '<div><b>Buscar recargas</b><small>Estações elétricas próximas</small></div>' +
+        '<span class="ms seta">chevron_right</span>' +
+      '</button>' +
     '</div>';
 
   UI.modal('Viagens', html, null);
@@ -5620,6 +5623,11 @@ App.abrirAbastecimentoMenu = function () {
       '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaPostos()">' +
         '<span class="ms">travel_explore</span>' +
         '<div><b>Buscar postos</b><small>Num raio à sua escolha</small></div>' +
+        '<span class="ms seta">chevron_right</span>' +
+      '</button>' +
+      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaRecargas()">' +
+        '<span class="ms">ev_station</span>' +
+        '<div><b>Buscar recargas</b><small>Estações elétricas próximas</small></div>' +
         '<span class="ms seta">chevron_right</span>' +
       '</button>' +
     '</div>';
