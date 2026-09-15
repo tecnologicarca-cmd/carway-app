@@ -5,7 +5,7 @@
    FIPE, documentos com vencimento, alertas persistentes, depreciacao.
    ===================================================================== */
 
-var VERSAO_FRONT = 11.0.2;
+var VERSAO_FRONT = 11;
 
 function dbVazio() {
   return { veiculos:[], viagens:[], despesas:[], abastecimentos:[], manutencoes:[], planos:[],
