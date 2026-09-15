@@ -908,31 +908,47 @@ App.renderHubs = function () {
 };
 
 /* =====================================================================
-   CARWAY v13.1.1 - RESUMO FINAL POR ENERGETICO
+   CARWAY v14 - ESTACOES DE RECARGA ELETRICA - FASE 1
    ===================================================================== */
-(function () {
-  function lista(v){var c=(v&&v.consumo)||{};return Array.isArray(c.porEnergetico)?c.porEnergetico:[];}
-  function ef(e){return Number(e.eficiencia||e.media||e.mediaEficiencia||0)||0;}
-  function unEf(e){return e.unidadeEficiencia||Comb.consumo(e.energetico||'Gasolina');}
-  function aviso(e){
-    if(e.status==='trecho-misto'||Number(e.ciclosMistos)>0)return 'Trecho com alternancia. Custos registrados; eficiencia aguardando ciclo exclusivo.';
-    if(Number(e.parciais)>0)return 'Abastecimento parcial acumulado. Aguardando o proximo ciclo completo.';
-    return 'Aguardando outro lancamento completo para fechar o ciclo.';
-  }
-  function bloco(e){var n=e.energetico||'Combustivel',ci=Comb.info(n),m=ef(e),q=Number(e.quantidade||0)||0;
-    var h='<div class="cc-gastos energia-bloco"><h5>'+U.esc(n)+'</h5><div class="cc-grid">'+
-      '<div><b>'+(m?U.num(m,2):'—')+'</b><small>'+unEf(e)+'</small></div>'+
-      '<div><b>'+U.num(q,ci.casasQtd)+' '+(e.unidade||ci.unidade)+'</b><small>quantidade</small></div>'+
-      '<div><b>'+U.moeda(e.gastoTotal||0)+'</b><small>gasto</small></div>'+
-      '<div><b>'+(Number(e.custoPorKm)>0?U.moeda(e.custoPorKm):'—')+'</b><small>por km</small></div></div>';
-    h+=m?'<div class="cc-linha"><span>Melhor / pior</span><b>'+U.num(e.melhor||m,2)+' / '+U.num(e.pior||m,2)+' '+unEf(e)+'</b></div>':'<div class="cc-aguarda"><span class="ms">hourglass_top</span>'+aviso(e)+'</div>';
-    return h+'</div>';
-  }
-  App.hubConsumo=function(){var vs=VEICULO_SEL==='todos'?(DB.veiculos||[]):(DB.veiculos||[]).filter(function(v){return v.id===VEICULO_SEL;});
-    if(!vs.length)return UI.modal('Consumo dos veiculos',UI.vazio('directions_car','Cadastre um veiculo.'),null);
-    var h='<div class="hub-periodo"><span class="ms">speed</span>Eficiencia e custo por energetico</div>';
-    vs.forEach(function(v){var c=v.consumo||{},d=lista(v);h+='<div class="card-consumo" style="--c:'+U.hex(v.cor)+'"><div class="cc-topo"><div class="cc-ico"><span class="ms">'+U.ico(v.tipo)+'</span></div><div class="cc-id"><b>'+U.esc(v.nome)+'</b><small>'+U.esc(v.placa)+' · '+U.num(v.kmAtual)+' km</small></div></div>';
-      h+=d.length?d.map(bloco).join(''):'<div class="cc-aguarda"><span class="ms">info</span>Nenhum dado energetico.</div>';
-      if(c.melhorCusto&&Number(c.melhorCusto.custoPorKm)>0)h+='<div class="cc-alertas ok"><span class="ms">savings</span>Mais economico: <b>'+U.esc(c.melhorCusto.energetico)+'</b> · '+U.moeda(c.melhorCusto.custoPorKm)+'/km</div>';
-      h+='<div class="cc-acoes"><button onclick="UI.fecharModal();App.formAbastecimento(\''+v.id+'\')"><span class="ms">add</span>Novo lancamento</button></div></div>';});UI.modal('Consumo dos veiculos',h,null);};
-})();
+Viagem.abrirBuscaRecargas = function () {
+  Geo.limpar();
+  var html='<div class="aviso info"><span class="ms">ev_station</span><div><b>Estações de recarga</b>Localize pontos elétricos próximos e abra a navegação.</div></div><div class="form">'+
+    Geo.campo('brEnd','Onde procurar','Cidade, endereço ou CEP','',
+      '<div class="chips" style="margin-top:7px"><div class="chip" onclick="Viagem.usarGpsRecarga()"><span class="ms">my_location</span>Usar minha localização</div></div>')+
+    campo('Raio da busca','<select id="brRaio"><option value="5000">5 km</option><option value="10000" selected>10 km — recomendado</option><option value="20000">20 km</option><option value="40000">40 km</option></select>')+'</div>';
+  UI.modal('Buscar recargas',html,function(){Viagem.executarBuscaRecargas();},'Buscar');
+};
+Viagem.usarGpsRecarga = function () {
+  if(!navigator.geolocation)return UI.toast('GPS indisponível','erro');
+  Geo.estado('brEnd','carregando');
+  navigator.geolocation.getCurrentPosition(function(p){
+    Viagem.pontoRecarga={lat:p.coords.latitude,lon:p.coords.longitude};
+    var el=$('brEnd');if(el)el.value='Minha localização';
+    Geo.ultimo.brEnd='Minha localização';Geo.estado('brEnd','ok');UI.toast('Localização obtida','ok');
+  },function(){Geo.estado('brEnd','erro');UI.toast('Não consegui acessar a localização','erro');});
+};
+Viagem.executarBuscaRecargas = function () {
+  var endereco=UI.v('brEnd'),raio=UI.n('brRaio')||10000,op={raio:raio};
+  if(Viagem.pontoRecarga && endereco==='Minha localização'){op.lat=Viagem.pontoRecarga.lat;op.lon=Viagem.pontoRecarga.lon;}
+  else {if(!endereco)return UI.toast('Informe onde procurar','erro');op.endereco=endereco;}
+  UI.fecharModal();UI.load(true,'Buscando estações de recarga…');
+  comPrazo(api('buscarRecargas',op),45000,'Serviço de recargas ocupado.')
+    .then(function(r){UI.load(false);Viagem.mostrarRecargas(r);})
+    .catch(function(e){UI.load(false);UI.toast(e.message||'Falha ao buscar recargas','erro');});
+};
+Viagem.mostrarRecargas = function (r) {
+  var lista=(r&&r.recargas)||[];
+  if(!lista.length)return UI.modal('Estações de recarga',UI.vazio('ev_station','Nenhuma estação encontrada nesse raio.'),null);
+  var html='<div class="hub-periodo"><span class="ms">ev_station</span>'+lista.length+' estação(ões) · raio '+(r.raioUsado||10)+' km</div><div class="postos-lista">'+
+    lista.map(function(x){var tags=[];if(x.abertoAgora)tags.push('<span class="pi-tag ok">Aberto agora</span>');if(x.rating)tags.push('<span class="pi-tag">★ '+U.num(x.rating,1)+' ('+U.num(x.avaliacoes)+')</span>');
+      var url=x.googleMapsUri||('https://www.google.com/maps/dir/?api=1&destination='+x.lat+','+x.lon);
+      return '<div class="posto-item"><div class="pi-ico recarga"><span class="ms">ev_station</span></div><div class="pi-txt"><b>'+U.esc(x.nome)+'</b><small>'+U.esc(x.endereco||'Endereço não informado')+'</small>'+(tags.length?'<div class="pi-tags">'+tags.join('')+'</div>':'')+'</div><div class="pi-dist"><b>'+U.num(x.desvioKm,1)+'</b><small>km</small><a class="pi-ir" href="'+url+'" target="_blank" rel="noopener"><span class="ms">navigation</span></a></div></div>';}).join('')+'</div>';
+  UI.modal('Estações de recarga',html,null);
+};
+Viagem.recargasDaRotaAtual = function () {
+  if(!Viagem.plano || !Viagem.plano.rotas || !Viagem.plano.rotas.length)return UI.toast('Planeje uma rota primeiro','erro');
+  var rota=Viagem.plano.rotas[Viagem.rotaSel||0],alvos=(rota.pontosParada&&rota.pontosParada.length)?rota.pontosParada:(rota.pontosApoio||[]);
+  if(!alvos.length)return Viagem.abrirBuscaRecargas();
+  UI.load(true,'Buscando recargas no trajeto…');
+  comPrazo(api('recargasNasParadas',alvos,15000),50000).then(function(grupos){UI.load(false);var todas=[];(grupos||[]).forEach(function(g){(g.recargas||[]).forEach(function(x){if(!todas.some(function(y){return y.placeId===x.placeId;}))todas.push(x);});});Viagem.mostrarRecargas({recargas:todas,raioUsado:15});}).catch(function(e){UI.load(false);UI.toast(e.message||'Falha ao buscar recargas','erro');});
+};
