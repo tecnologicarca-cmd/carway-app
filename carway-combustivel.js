@@ -1,29 +1,3 @@
-/* =====================================================================
-   CARWAY v11 — COMBUSTÍVEIS COM UNIDADE PRÓPRIA
-
-   Problema que este arquivo resolve
-   ---------------------------------
-   O app tratava tudo como LITRO. Isso está errado para dois casos:
-
-     GNV      — vendido em metros cúbicos (m³), não em litros
-     Elétrico — carregado em quilowatt-hora (kWh), não em litros
-
-   Um carro a GNV faz ~12 km/m³. Um elétrico faz ~6 km/kWh. Chamar
-   isso de "km/L" confunde e impede comparação com o manual do veículo.
-
-   Como foi resolvido
-   ------------------
-   As COLUNAS da planilha continuam as mesmas (litros, precoLitro,
-   tanque). O que muda é a UNIDADE mostrada na tela, de acordo com o
-   combustível escolhido. Nenhuma alteração no Codigo.gs é necessária,
-   e os dados já lançados continuam válidos.
-
-   A matemática do consumo é idêntica nos três casos:
-       km percorridos ÷ quantidade abastecida
-
-   Carregue DEPOIS do carway-extra.js.
-   ===================================================================== */
-
 
 /* =====================================================================
    1 — TABELA DE UNIDADES
