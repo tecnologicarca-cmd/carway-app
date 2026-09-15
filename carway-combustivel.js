@@ -1,5 +1,4 @@
 /* =====================================================================
-   CARWAY v13.1.0
    1 — TABELA DE UNIDADES
    ===================================================================== */
 
@@ -909,120 +908,31 @@ App.renderHubs = function () {
 };
 
 /* =====================================================================
-   CARWAY v13.1.0 - RESUMO PROFISSIONAL POR ENERGETICO
-   Este bloco fica por ultimo porque carway-combustivel.js e o ultimo
-   modulo carregado pelo index.html.
+   CARWAY v13.1.1 - RESUMO FINAL POR ENERGETICO
    ===================================================================== */
 (function () {
-  function detalhesConsumo(v) {
-    var c = (v && v.consumo) || {};
-    return Array.isArray(c.porEnergetico) ? c.porEnergetico : [];
-  }
-
-  function eficiencia(e) {
-    return Number(e.eficiencia || e.media || e.mediaEficiencia || 0) || 0;
-  }
-
-  function unidadeEficiencia(e) {
-    return e.unidadeEficiencia || Comb.consumo(e.energetico || 'Gasolina');
-  }
-
-  function quantidade(e) {
-    return Number(e.quantidade || e.litrosComprados || 0) || 0;
-  }
-
-  function mensagemEstado(e) {
-    if (e.status === 'trecho-misto' || Number(e.ciclosMistos) > 0) {
-      return 'Trecho com alternancia de energetico. Custos registrados; eficiencia aguardando ciclo exclusivo.';
-    }
-    if (Number(e.parciais) > 0 && !eficiencia(e)) {
-      return 'Abastecimento parcial acumulado. Aguardando o proximo ciclo completo.';
-    }
+  function lista(v){var c=(v&&v.consumo)||{};return Array.isArray(c.porEnergetico)?c.porEnergetico:[];}
+  function ef(e){return Number(e.eficiencia||e.media||e.mediaEficiencia||0)||0;}
+  function unEf(e){return e.unidadeEficiencia||Comb.consumo(e.energetico||'Gasolina');}
+  function aviso(e){
+    if(e.status==='trecho-misto'||Number(e.ciclosMistos)>0)return 'Trecho com alternancia. Custos registrados; eficiencia aguardando ciclo exclusivo.';
+    if(Number(e.parciais)>0)return 'Abastecimento parcial acumulado. Aguardando o proximo ciclo completo.';
     return 'Aguardando outro lancamento completo para fechar o ciclo.';
   }
-
-  function blocoEnergetico(e) {
-    var ef = eficiencia(e);
-    var nome = e.energetico || 'Combustivel';
-    var ci = Comb.info(nome);
-    var qtd = quantidade(e);
-    var html = '<div class="cc-gastos energia-bloco">' +
-      '<h5>' + U.esc(nome) + '</h5>' +
-      '<div class="cc-grid">' +
-        '<div><b>' + (ef ? U.num(ef,2) : '—') + '</b><small>' + unidadeEficiencia(e) + '</small></div>' +
-        '<div><b>' + U.num(qtd,ci.casasQtd) + ' ' + (e.unidade || ci.unidade) + '</b><small>quantidade</small></div>' +
-        '<div><b>' + U.moeda(e.gastoTotal || 0) + '</b><small>gasto</small></div>' +
-        '<div><b>' + (Number(e.custoPorKm)>0 ? U.moeda(e.custoPorKm) : '—') + '</b><small>por km</small></div>' +
-      '</div>';
-    if (ef) {
-      html += '<div class="cc-linha"><span>Melhor / pior</span><b>' +
-        U.num(e.melhor || ef,2) + ' / ' + U.num(e.pior || ef,2) + ' ' + unidadeEficiencia(e) + '</b></div>';
-      html += '<div class="cc-linha"><span>Ciclos automaticos / manuais</span><b>' +
-        (Number(e.ciclosAutomaticos)||0) + ' / ' + (Number(e.medicoesManuais)||0) + '</b></div>';
-    } else {
-      html += '<div class="cc-aguarda"><span class="ms">hourglass_top</span>' + mensagemEstado(e) + '</div>';
-    }
-    return html + '</div>';
+  function bloco(e){var n=e.energetico||'Combustivel',ci=Comb.info(n),m=ef(e),q=Number(e.quantidade||0)||0;
+    var h='<div class="cc-gastos energia-bloco"><h5>'+U.esc(n)+'</h5><div class="cc-grid">'+
+      '<div><b>'+(m?U.num(m,2):'—')+'</b><small>'+unEf(e)+'</small></div>'+
+      '<div><b>'+U.num(q,ci.casasQtd)+' '+(e.unidade||ci.unidade)+'</b><small>quantidade</small></div>'+
+      '<div><b>'+U.moeda(e.gastoTotal||0)+'</b><small>gasto</small></div>'+
+      '<div><b>'+(Number(e.custoPorKm)>0?U.moeda(e.custoPorKm):'—')+'</b><small>por km</small></div></div>';
+    h+=m?'<div class="cc-linha"><span>Melhor / pior</span><b>'+U.num(e.melhor||m,2)+' / '+U.num(e.pior||m,2)+' '+unEf(e)+'</b></div>':'<div class="cc-aguarda"><span class="ms">hourglass_top</span>'+aviso(e)+'</div>';
+    return h+'</div>';
   }
-
-  App.hubConsumo = function () {
-    var lista = VEICULO_SEL === 'todos' ? (DB.veiculos || []) :
-      (DB.veiculos || []).filter(function (v) { return v.id === VEICULO_SEL; });
-    if (!lista.length) return UI.modal('Consumo dos veiculos', UI.vazio('directions_car','Cadastre um veiculo.'), null);
-
-    var html = '<div class="hub-periodo"><span class="ms">speed</span>Eficiencia e custo por energetico</div>';
-    lista.forEach(function (v) {
-      var c = v.consumo || {};
-      var det = detalhesConsumo(v);
-      html += '<div class="card-consumo" style="--c:' + U.hex(v.cor) + '">' +
-        '<div class="cc-topo"><div class="cc-ico"><span class="ms">' + U.ico(v.tipo) + '</span></div>' +
-        '<div class="cc-id"><b>' + U.esc(v.nome) + '</b><small>' + U.esc(v.placa) + ' · ' + U.num(v.kmAtual) + ' km</small></div></div>';
-      if (!det.length) {
-        html += '<div class="cc-aguarda"><span class="ms">info</span>Nenhum dado energetico disponivel.</div>';
-      } else {
-        det.forEach(function (e) { html += blocoEnergetico(e); });
-      }
-      if (c.melhorCusto && Number(c.melhorCusto.custoPorKm)>0) {
-        html += '<div class="cc-alertas ok"><span class="ms">savings</span>Mais economico: <b>' +
-          U.esc(c.melhorCusto.energetico) + '</b> · ' + U.moeda(c.melhorCusto.custoPorKm) + '/km</div>';
-      }
-      html += '<div class="cc-acoes"><button onclick="UI.fecharModal();App.formAbastecimento(\'' + v.id + '\')">' +
-        '<span class="ms">add</span>Novo lancamento</button></div></div>';
-    });
-    UI.modal('Consumo dos veiculos', html, null);
-  };
-
-  var renderAbastecimentosBase = App.renderAbastecimentos;
-  App.renderAbastecimentos = function () {
-    renderAbastecimentosBase();
-    var v = U.veicAtual();
-    var ex = $('explicaConsumo');
-    if (!ex || !v || VEICULO_SEL === 'todos') return;
-    var det = detalhesConsumo(v);
-    if (!det.length) {
-      ex.className = 'aviso';
-      ex.innerHTML = '<span class="ms">info</span><div><b>Consumo por energetico</b>Aguardando lancamentos suficientes.</div>';
-      return;
-    }
-    ex.className = 'aviso info';
-    ex.classList.remove('oculto');
-    ex.innerHTML = '<span class="ms">calculate</span><div><b>Consumo de ' + U.esc(v.nome) + '</b>' +
-      det.map(function (e) {
-        var ef=eficiencia(e);
-        return '<div style="margin-top:7px"><b>' + U.esc(e.energetico) + ':</b> ' +
-          (ef ? U.num(ef,2) + ' ' + unidadeEficiencia(e) : mensagemEstado(e)) + '</div>';
-      }).join('') + '</div>';
-  };
-
-  var renderHubsBase = App.renderHubs;
-  App.renderHubs = function () {
-    renderHubsBase();
-    var hubs = document.querySelectorAll('#hubs .hub');
-    [].forEach.call(hubs, function (h) {
-      var titulo=h.querySelector('.hub-txt b');
-      var sub=h.querySelector('.hub-txt small');
-      if (titulo && sub && titulo.textContent === 'Consumo dos veiculos') sub.textContent='Detalhado por energetico';
-      if (titulo && sub && titulo.textContent === 'Consumo dos veículos') sub.textContent='Detalhado por energético';
-    });
-  };
+  App.hubConsumo=function(){var vs=VEICULO_SEL==='todos'?(DB.veiculos||[]):(DB.veiculos||[]).filter(function(v){return v.id===VEICULO_SEL;});
+    if(!vs.length)return UI.modal('Consumo dos veiculos',UI.vazio('directions_car','Cadastre um veiculo.'),null);
+    var h='<div class="hub-periodo"><span class="ms">speed</span>Eficiencia e custo por energetico</div>';
+    vs.forEach(function(v){var c=v.consumo||{},d=lista(v);h+='<div class="card-consumo" style="--c:'+U.hex(v.cor)+'"><div class="cc-topo"><div class="cc-ico"><span class="ms">'+U.ico(v.tipo)+'</span></div><div class="cc-id"><b>'+U.esc(v.nome)+'</b><small>'+U.esc(v.placa)+' · '+U.num(v.kmAtual)+' km</small></div></div>';
+      h+=d.length?d.map(bloco).join(''):'<div class="cc-aguarda"><span class="ms">info</span>Nenhum dado energetico.</div>';
+      if(c.melhorCusto&&Number(c.melhorCusto.custoPorKm)>0)h+='<div class="cc-alertas ok"><span class="ms">savings</span>Mais economico: <b>'+U.esc(c.melhorCusto.energetico)+'</b> · '+U.moeda(c.melhorCusto.custoPorKm)+'/km</div>';
+      h+='<div class="cc-acoes"><button onclick="UI.fecharModal();App.formAbastecimento(\''+v.id+'\')"><span class="ms">add</span>Novo lancamento</button></div></div>';});UI.modal('Consumo dos veiculos',h,null);};
 })();
