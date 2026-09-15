@@ -1,5 +1,5 @@
 /* =====================================================================
-   CARWAY — v13
+   CARWAY — v11
    Google Maps Platform (Routes, Places, Geocoding)
    Pedagio automatico, paradas IDA/VOLTA com custo, paradas realizadas,
    FIPE, documentos com vencimento, alertas persistentes, depreciacao.
@@ -2663,7 +2663,9 @@ var Geo = {
     Geo.timers[id] = setTimeout(function () { Geo.buscar(id, txt); }, 550);
   },
   buscar: function (id, txt) {
-    Geo.fila = (Geo.fila || Promise.resolve()).then(function () {
+    Geo.fila = (Geo.fila || Promise.resolve()).catch(function () {
+      return null;
+    }).then(function () {
       if (UI.v(id) !== txt) return;
       Geo.ultimo[id] = txt;
       return comPrazo(api('sugerirLocais', txt), 15000, 'demorou').then(function (r) {
