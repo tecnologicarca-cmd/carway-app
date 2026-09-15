@@ -1332,3 +1332,165 @@ Viagem.configurarVeiculoPlanejador = function(id){
     });
   };
 })();
+
+
+/* =====================================================================
+   CARWAY v14.3 - ESTACOES DE RECARGA AVANCADAS - GITHUB
+   ===================================================================== */
+(function () {
+  function n(v) { return Number(v || 0) || 0; }
+
+  function minutos(energiaKwh, potenciaKw) {
+    if (n(energiaKwh) <= 0 || n(potenciaKw) <= 0) return 0;
+    return Math.ceil((n(energiaKwh) / n(potenciaKw)) * 60 * 1.18);
+  }
+
+  function conectores(estacao) {
+    var lista = Array.isArray(estacao && estacao.conectores)
+      ? estacao.conectores : [];
+    if (!lista.length) return 'Conectores não informados';
+    return lista.map(function (c) {
+      var texto = c.nome || c.tipo || 'Conector';
+      if (n(c.potenciaMaximaKw) > 0) texto += ' · ' + U.num(c.potenciaMaximaKw, 0) + ' kW';
+      if (n(c.disponiveis) > 0) texto += ' · ' + U.num(c.disponiveis) + ' livre(s)';
+      return texto;
+    }).join(' | ');
+  }
+
+  function nota(estacao) {
+    return n(estacao.potenciaMaximaKw) * 0.38 +
+      n(estacao.rating) * 12 +
+      n(estacao.conectoresDisponiveis) * 8 -
+      n(estacao.desvioKm) * 4;
+  }
+
+  function ordenar(lista) {
+    return (lista || []).slice().sort(function (a, b) {
+      return nota(b) - nota(a);
+    });
+  }
+
+  function contexto() {
+    return {
+      eficiencia: UI.n('pKmL'),
+      bateria: UI.n('pTanque'),
+      nivel: UI.n('pNivel') || 100,
+      reserva: UI.n('pReserva') || 15,
+      preco: UI.n('pPreco')
+    };
+  }
+
+  Viagem.calcularResumoEletricoV143 = function (rota, estacoes) {
+    var c = contexto();
+    var distancia = n(rota && (rota.km || rota.distanciaKm || rota.distancia));
+    var energiaTotal = c.eficiencia > 0 ? distancia / c.eficiencia : 0;
+    var energiaInicial = c.bateria * c.nivel / 100;
+    var reservaKwh = c.bateria * c.reserva / 100;
+    var energiaRecarga = Math.max(0, energiaTotal - Math.max(0, energiaInicial - reservaKwh));
+    var capacidadeUtil = Math.max(1, c.bateria - reservaKwh);
+    var qtd = energiaRecarga > 0 ? Math.ceil(energiaRecarga / capacidadeUtil) : 0;
+    var energiaParada = qtd ? energiaRecarga / qtd : 0;
+    var lista = ordenar(estacoes);
+    var melhor = lista[0] || null;
+    var potencia = melhor ? n(melhor.potenciaMaximaKw) : 0;
+    return {
+      distancia: distancia,
+      energiaTotal: energiaTotal,
+      energiaRecarga: energiaRecarga,
+      energiaPorParada: energiaParada,
+      recargas: qtd,
+      custo: energiaTotal * c.preco,
+      tempoTotal: minutos(energiaRecarga, potencia),
+      melhorEstacao: melhor
+    };
+  };
+
+  Viagem.mostrarRecargas = function (resultado, rota) {
+    resultado = resultado || {};
+    var lista = ordenar(resultado.recargas || []);
+    if (!lista.length) {
+      return UI.modal('Estações de recarga',
+        UI.vazio('ev_station', 'Nenhuma estação encontrada nesse raio.'), null);
+    }
+
+    var resumo = Viagem.calcularResumoEletricoV143(
+      rota || (Viagem.plano && Viagem.plano.rotas && Viagem.plano.rotas[Viagem.rotaSel || 0]) || {},
+      lista
+    );
+    var melhor = resumo.melhorEstacao;
+    var melhorId = melhor ? melhor.placeId : '';
+    var html = '<div class="hub-periodo"><span class="ms">ev_station</span>' +
+      lista.length + ' estação(ões) · raio ' + (resultado.raioUsado || 10) + ' km</div>';
+
+    if (resumo.distancia > 0) {
+      html += '<div class="resumo-eletrico-v143"><div class="cc-grid">' +
+        '<div><b>' + U.num(resumo.distancia, 1) + '</b><small>km de rota</small></div>' +
+        '<div><b>' + U.num(resumo.energiaTotal, 1) + '</b><small>kWh previstos</small></div>' +
+        '<div><b>' + resumo.recargas + '</b><small>recarga(s)</small></div>' +
+        '<div><b>' + U.moeda(resumo.custo) + '</b><small>custo estimado</small></div>' +
+        '</div>' +
+        (resumo.tempoTotal > 0
+          ? '<div class="cc-linha"><span>Tempo total estimado</span><b>' + U.hm(resumo.tempoTotal) + '</b></div>'
+          : '') + '</div>';
+    }
+
+    html += '<div class="lista-postos">' + lista.map(function (e) {
+      var ehMelhor = melhorId && e.placeId === melhorId;
+      var potencia = n(e.potenciaMaximaKw);
+      var tempo = minutos(resumo.energiaPorParada, potencia);
+      var tags = [];
+      if (ehMelhor) tags.push('<span class="pt-tag h24">Recomendada</span>');
+      if (e.abertoAgora) tags.push('<span class="pt-tag h24">Aberta agora</span>');
+      if (n(e.rating) > 0) tags.push('<span class="pt-tag">★ ' + U.num(e.rating, 1) + '</span>');
+      if (potencia > 0) tags.push('<span class="pt-tag">' + U.num(potencia, 0) + ' kW</span>');
+      if (n(e.conectoresDisponiveis) > 0) {
+        tags.push('<span class="pt-tag h24">' + U.num(e.conectoresDisponiveis) + ' disponível(is)</span>');
+      }
+      var url = e.googleMapsUri || (URL_MAPS_DIR + e.lat + ',' + e.lon);
+      return '<div class="posto-item recarga-avancada' + (ehMelhor ? ' melhor' : '') + '">' +
+        '<div class="pi-ico recarga"><span class="ms">ev_station</span></div>' +
+        '<div class="pi-txt"><b>' + U.esc(e.nome) + '</b>' +
+        '<small>' + U.esc(e.endereco || 'Endereço não informado') + '</small>' +
+        '<small>' + U.esc(conectores(e)) + '</small>' +
+        (tempo > 0 ? '<small><b>Estimativa: ' + U.hm(tempo) + '</b> para ' +
+          U.num(resumo.energiaPorParada, 1) + ' kWh</small>' : '') +
+        (tags.length ? '<div class="pi-tags">' + tags.join('') + '</div>' : '') +
+        '</div><div class="pi-dist"><b>' + U.num(e.desvioKm, 1) + '</b><small>km</small>' +
+        '<a class="pi-ir" href="' + url + '" target="_blank" rel="noopener">' +
+        '<span class="ms">navigation</span></a></div></div>';
+    }).join('') + '</div>';
+
+    html += '<p class="dica">Potência, conectores e disponibilidade aparecem somente quando informados pela estação. Confirme as condições antes da viagem.</p>';
+    UI.modal('Estações de recarga', html, null);
+  };
+
+  Viagem.recargasDaRotaAtual = function () {
+    if (!Viagem.plano || !Viagem.plano.rotas || !Viagem.plano.rotas.length) {
+      return UI.toast('Planeje uma rota primeiro', 'erro');
+    }
+    var rota = Viagem.plano.rotas[Viagem.rotaSel || 0];
+    var alvos = rota.pontosParada && rota.pontosParada.length
+      ? rota.pontosParada : (rota.pontosApoio || []);
+    if (!alvos.length) return Viagem.abrirBuscaRecargas();
+
+    UI.load(true, 'Buscando recargas no trajeto…');
+    comPrazo(api('recargasNasParadas', alvos, 15000), 55000)
+      .then(function (grupos) {
+        UI.load(false);
+        var todas = [];
+        (grupos || []).forEach(function (grupo) {
+          (grupo.recargas || []).forEach(function (estacao) {
+            var repetida = todas.some(function (x) {
+              return x.placeId && x.placeId === estacao.placeId;
+            });
+            if (!repetida) todas.push(estacao);
+          });
+        });
+        Viagem.mostrarRecargas({ recargas: todas, raioUsado: 15 }, rota);
+      })
+      .catch(function (erro) {
+        UI.load(false);
+        UI.toast(erro.message || 'Falha ao buscar recargas', 'erro');
+      });
+  };
+})();
