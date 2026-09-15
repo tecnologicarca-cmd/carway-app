@@ -1,11 +1,11 @@
 /* =====================================================================
-   CARWAY — v11
+   CARWAY — v13
    Google Maps Platform (Routes, Places, Geocoding)
    Pedagio automatico, paradas IDA/VOLTA com custo, paradas realizadas,
    FIPE, documentos com vencimento, alertas persistentes, depreciacao.
    ===================================================================== */
 
-var VERSAO_FRONT = 11;
+var VERSAO_FRONT = 13;
 
 function dbVazio() {
   return { veiculos:[], viagens:[], despesas:[], abastecimentos:[], manutencoes:[], planos:[],
