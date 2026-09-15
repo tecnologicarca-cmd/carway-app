@@ -13,7 +13,7 @@
    arquivo antigo do cache.
    ===================================================================== */
 
-var VERSAO = 'carway-v11.0.0';
+var VERSAO = 'carway-v11.0.2';
 
 var CACHE_SHELL = VERSAO + '-shell';
 var CACHE_EXTERNO = VERSAO + '-externo';
@@ -25,6 +25,8 @@ var ARQUIVOS_SHELL = [
   './estilos.css',
   './carway-config.js',
   './script.js',
+  './carway-extra.js',
+  './carway-combustivel.js',
   './manifest.json',
   './icones/carway-192.png',
   './icones/carway-512.png',
