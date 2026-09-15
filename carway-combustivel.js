@@ -1062,3 +1062,273 @@ Viagem.configurarVeiculoPlanejador = function(id){
   };
 
 })();
+
+
+/* =====================================================================
+   CARWAY v14.2 - PLANEJADOR ELETRICO E MANUTENCAO ADAPTATIVA
+   ===================================================================== */
+(function () {
+  function ehEletrico(v) {
+    var s = String(v && v.combustivel || '').toLowerCase();
+    return s.indexOf('elétr') >= 0 || s.indexOf('eletr') >= 0;
+  }
+
+  function ehHibrido(v) {
+    var s = String(v && v.combustivel || '').toLowerCase();
+    return s.indexOf('híbr') >= 0 || s.indexOf('hibr') >= 0;
+  }
+
+  function detalheEletrico(v) {
+    var c = v && v.consumo || {};
+    var lista = Array.isArray(c.porEnergetico) ? c.porEnergetico : [];
+    for (var i = 0; i < lista.length; i++) {
+      var nome = String(lista[i].energetico || '').toLowerCase();
+      if (nome.indexOf('elétr') >= 0 || nome.indexOf('eletr') >= 0) {
+        return lista[i];
+      }
+    }
+    return null;
+  }
+
+  function mediaEletrica(v) {
+    var d = detalheEletrico(v);
+    var c = v && v.consumo || {};
+    return Number(
+      d && (d.eficiencia || d.media || d.mediaEficiencia) ||
+      c.mediaEficiencia || c.mediaKmL || 0
+    ) || 0;
+  }
+
+  function capacidadeEletrica(v) {
+    return Number(
+      v && (v.bateriaKwh || v.capacidadeBateria || v.tanque) || 0
+    ) || 0;
+  }
+
+  function trocarLabel(id, texto) {
+    var campo = $(id);
+    var label = campo && campo.parentNode
+      ? campo.parentNode.querySelector('label')
+      : null;
+    if (label) label.textContent = texto;
+  }
+
+  Viagem.aplicarEnergiaAoPlanejador = function (veiculoId) {
+    var v = U.veic(veiculoId) || U.veicAtual();
+    if (!v) return;
+
+    var eletrico = ehEletrico(v);
+    var info = Comb.info(v.combustivel);
+    var media = eletrico ? mediaEletrica(v) :
+      Number(v.consumo && (v.consumo.mediaEficiencia || v.consumo.mediaKmL) || 0);
+    var capacidade = eletrico ? capacidadeEletrica(v) : Number(v.tanque || 0);
+
+    trocarLabel('pKmL', eletrico
+      ? 'Eficiência (km/kWh)'
+      : 'Consumo (' + info.consumo + ')');
+    trocarLabel('pTanque', eletrico
+      ? 'Capacidade da bateria (kWh)'
+      : info.tanque);
+    trocarLabel('pPreco', eletrico
+      ? 'Preço da energia (R$/kWh)'
+      : 'Preço por ' + info.unidade);
+    trocarLabel('pNivel', eletrico ? 'Bateria agora' : 'Tanque agora');
+
+    var consumo = $('pKmL');
+    var tanque = $('pTanque');
+    if (consumo) consumo.value = media > 0 ? media : '';
+    if (tanque) tanque.value = capacidade > 0 ? capacidade : '';
+
+    Viagem.modoApoio = eletrico
+      ? 'recargas'
+      : (ehHibrido(v) ? 'ambos' : 'postos');
+
+    var aviso = $('boxAviso');
+    if (aviso) {
+      aviso.innerHTML =
+        '<div class="aviso ' + (media > 0 ? 'info' : '') + '">' +
+        '<span class="ms">' + (eletrico ? 'ev_station' : 'local_gas_station') + '</span><div>' +
+        '<b>' + U.esc(v.nome) + '</b>' +
+        (media > 0
+          ? 'Eficiência preenchida pelo histórico. Você pode alterar somente para esta simulação.'
+          : 'Ainda não existe média confiável. Informe a eficiência para esta simulação.') +
+        '</div></div>' +
+        (capacidade > 0 ? '' :
+          '<div class="aviso"><span class="ms">edit_note</span><div>' +
+          '<b>Capacidade não cadastrada</b>Informe a capacidade apenas para esta viagem.' +
+          '</div></div>');
+    }
+
+    if (typeof Viagem.previewAutonomia === 'function') {
+      Viagem.previewAutonomia();
+    }
+  };
+
+  var abrirPlanejadorV142 = Viagem.abrirPlanejador;
+  Viagem.abrirPlanejador = function () {
+    abrirPlanejadorV142();
+    setTimeout(function () {
+      var seletor = $('pVeic');
+      var trocaAnterior = UI._aoTrocarVeic;
+      UI._aoTrocarVeic = function (id) {
+        if (typeof trocaAnterior === 'function') trocaAnterior(id);
+        Viagem.aplicarEnergiaAoPlanejador(id);
+      };
+      Viagem.aplicarEnergiaAoPlanejador(
+        seletor ? seletor.value : (U.veicAtual() || {}).id
+      );
+    }, 150);
+  };
+
+  Viagem.validarCoberturaEletrica = function (rota, veiculo) {
+    var eficiencia = UI.n('pKmL');
+    var capacidade = UI.n('pTanque');
+    var nivel = UI.n('pNivel') || 100;
+    var reserva = UI.n('pReserva') || 15;
+    var autonomiaCheia = eficiencia * capacidade * (1 - reserva / 100);
+    var autonomiaInicial = eficiencia * capacidade *
+      Math.max(0, nivel - reserva) / 100;
+
+    if (autonomiaCheia <= 0) {
+      UI.toast('Informe eficiência e capacidade da bateria para validar a rota.', 'erro');
+      return Promise.resolve(false);
+    }
+
+    var pontos = rota && rota.pontosApoio && rota.pontosApoio.length
+      ? rota.pontosApoio
+      : (rota && rota.pontosParada || []);
+
+    if (!pontos.length) {
+      UI.toast('A rota não forneceu pontos suficientes para verificar recargas.', 'erro');
+      return Promise.resolve(false);
+    }
+
+    UI.load(true, 'Validando autonomia e recargas…');
+
+    return comPrazo(
+      api('recargasNasParadas', pontos, 15000),
+      60000,
+      'A busca de recargas demorou demais.'
+    ).then(function (grupos) {
+      UI.load(false);
+      grupos = grupos || [];
+
+      var posicoes = [];
+      grupos.forEach(function (grupo) {
+        if ((grupo.recargas || []).length) {
+          posicoes.push(Number(grupo.kmAcum || 0));
+        }
+      });
+      posicoes = posicoes.filter(function (km) { return km > 0; })
+        .sort(function (a, b) { return a - b; });
+
+      var total = Number(
+        rota.km || rota.distanciaKm || rota.distancia || 0
+      ) || 0;
+      var anterior = 0;
+      var maiorTrecho = 0;
+
+      posicoes.forEach(function (km) {
+        var trecho = km - anterior;
+        if (trecho > maiorTrecho) maiorTrecho = trecho;
+        anterior = km;
+      });
+
+      if (total > 0) {
+        var trechoFinal = total - anterior;
+        if (trechoFinal > maiorTrecho) maiorTrecho = trechoFinal;
+      }
+
+      var primeiroTrecho = posicoes.length ? posicoes[0] : total;
+      var viavel = posicoes.length > 0 &&
+        primeiroTrecho <= autonomiaInicial &&
+        maiorTrecho <= autonomiaCheia;
+      var deficit = Math.max(0, maiorTrecho - autonomiaCheia);
+
+      rota.validacaoEletrica = {
+        viavel: viavel,
+        autonomiaSegura: Math.round(autonomiaCheia),
+        autonomiaInicial: Math.round(autonomiaInicial),
+        maiorTrecho: Math.round(maiorTrecho),
+        deficit: Math.round(deficit),
+        pontosComRecarga: posicoes.length
+      };
+
+      var html =
+        '<div class="aviso ' + (viavel ? 'verde' : '') + '">' +
+        '<span class="ms">' + (viavel ? 'check_circle' : 'warning') + '</span><div>' +
+        '<b>' + (viavel ? 'Viagem elétrica viável' : 'Viagem elétrica não recomendada') + '</b>' +
+        (viavel
+          ? 'Foi encontrada uma sequência de recargas compatível com a autonomia segura.'
+          : 'Não foi encontrada uma sequência segura de recargas para todos os trechos.') +
+        '</div></div>' +
+        '<div class="cc-grid">' +
+        '<div><b>' + Math.round(autonomiaCheia) + '</b><small>km autonomia segura</small></div>' +
+        '<div><b>' + Math.round(maiorTrecho) + '</b><small>km maior trecho</small></div>' +
+        '<div><b>' + posicoes.length + '</b><small>pontos com recarga</small></div>' +
+        '<div><b>' + Math.round(deficit) + '</b><small>km de déficit</small></div>' +
+        '</div>' +
+        '<p class="dica">Confirme disponibilidade e compatibilidade do conector antes da viagem.</p>';
+
+      UI.modal('Validação da rota elétrica', html, null);
+      return viavel;
+    }).catch(function (erro) {
+      UI.load(false);
+      UI.toast(erro.message || 'Falha ao validar a rota elétrica', 'erro');
+      return false;
+    });
+  };
+
+  var carregarApoioV142 = Viagem.carregarPostos;
+  Viagem.carregarPostos = function (rota) {
+    var v = U.veic(UI.v('pVeic')) || U.veicAtual();
+    if (!ehEletrico(v)) {
+      return carregarApoioV142.call(Viagem, rota);
+    }
+    return Viagem.validarCoberturaEletrica(rota, v);
+  };
+
+  var planoPadraoV142 = App.planoPadrao;
+  App.planoPadrao = function (veiculoId, aposCadastro) {
+    var v = U.veic(veiculoId);
+    if (!v || (!ehEletrico(v) && !ehHibrido(v))) {
+      return planoPadraoV142(veiculoId, aposCadastro);
+    }
+
+    UI.load(true, 'Preparando plano específico…');
+    api('previewPlanoPadraoVeiculo', veiculoId).then(function (itens) {
+      UI.load(false);
+      var html =
+        '<div class="form"><div class="aviso info"><span class="ms">' +
+        (ehEletrico(v) ? 'electric_car' : 'minor_crash') + '</span><div>' +
+        '<b>Plano ' + (ehEletrico(v) ? 'elétrico' : 'híbrido') + '</b>' +
+        'Itens adequados à propulsão do veículo.</div></div>' +
+        '<div class="plano-lista">' +
+        (itens || []).map(function (item, indice) {
+          return '<label class="plano-item"><input type="checkbox" id="pe' + indice + '" checked>' +
+            '<div><b>' + U.esc(item.item) + '</b><small>' +
+            (item.intervaloKm ? U.num(item.intervaloKm) + ' km' : 'por tempo') +
+            (item.intervaloMeses ? ' · ' + item.intervaloMeses + ' meses' : '') +
+            '</small></div></label>';
+        }).join('') + '</div></div>';
+
+      UI.modal('Plano de manutenção', html, function () {
+        var selecionados = (itens || []).filter(function (item, indice) {
+          var campo = $('pe' + indice);
+          return campo && campo.checked;
+        });
+        UI.fecharModal();
+        UI.load(true, 'Criando plano…');
+        api('criarPlanoPadrao', veiculoId, v.kmAtual || 0, v.tipo, selecionados)
+          .then(function () { return App.aposSalvar('Plano específico criado'); })
+          .catch(function (erro) {
+            UI.load(false);
+            UI.toast(erro.message, 'erro');
+          });
+      }, 'Criar plano');
+    }).catch(function (erro) {
+      UI.load(false);
+      UI.toast(erro.message, 'erro');
+    });
+  };
+})();
