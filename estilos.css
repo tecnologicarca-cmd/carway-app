@@ -1358,3 +1358,18 @@ body.tema-claro .faixa-instalar {
 }
 /* CARWAY v14 - recargas */
 .pi-ico.recarga{background:rgba(34,197,94,.14);color:#22c55e}
+
+
+/* =====================================================================
+   CARWAY v14.3 - ESTACOES DE RECARGA AVANCADAS
+   ===================================================================== */
+.recarga-avancada{position:relative;transition:border-color .2s,background .2s,transform .2s}
+.recarga-avancada.melhor{border-color:rgba(34,197,94,.65);background:linear-gradient(135deg,rgba(34,197,94,.09),var(--bg2))}
+.recarga-avancada.melhor::before{content:'RECOMENDADA';position:absolute;top:-7px;right:10px;background:var(--verde);color:#052e16;border-radius:99px;padding:2px 8px;font-size:8px;font-weight:800;letter-spacing:.45px}
+.pi-ico.recarga{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;background:rgba(34,197,94,.14);color:var(--verde)}
+.pi-ico.recarga .ms{font-size:20px}
+.resumo-eletrico-v143{background:linear-gradient(150deg,var(--card),rgba(34,197,94,.06));border:1px solid rgba(34,197,94,.35);border-radius:var(--r);padding:12px;margin-bottom:14px}
+.resumo-eletrico-v143 .cc-linha{margin-top:9px;padding-top:9px}
+body.tema-claro .recarga-avancada.melhor{background:linear-gradient(135deg,rgba(22,163,74,.08),#fff)}
+body.tema-claro .resumo-eletrico-v143{background:linear-gradient(150deg,#fff,rgba(22,163,74,.07));border-color:rgba(22,163,74,.3)}
+@media(max-width:420px){.recarga-avancada .pi-txt small{font-size:10.5px}.resumo-eletrico-v143 .cc-grid{grid-template-columns:repeat(2,1fr)}}
