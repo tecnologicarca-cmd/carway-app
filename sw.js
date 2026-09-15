@@ -13,7 +13,7 @@
    arquivo antigo do cache.
    ===================================================================== */
 
-var VERSAO = 'carway-v13.1.1';
+var VERSAO = 'carway-v14.0.0';
 
 var CACHE_SHELL = VERSAO + '-shell';
 var CACHE_EXTERNO = VERSAO + '-externo';
