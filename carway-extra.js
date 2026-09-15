@@ -1,28 +1,6 @@
-/* =====================================================================
-   CARWAY v11 — COMPLEMENTOS
 
-   Este arquivo é carregado DEPOIS do script.js e traz:
 
-     1. Offline.salvarComFallback  — função que o app CHAMA mas que
-        NUNCA FOI ESCRITA. Sem ela, salvar abastecimento, manutenção
-        e despesa quebra com "Offline.salvarComFallback is not a
-        function". Esta é a correção.
-
-     2. Offline.sincronizarPendentes — implementação real. No arquivo
-        antigo era só um aviso ("será ativada na próxima atualização").
-
-     3. Instalador — faixa e guia de instalação do PWA.
-
-     4. bootApp — versão que lê a URL direta, sem google.script.url.
-
-   Ordem no index.html:
-     carway-config.js  →  script.js  →  carway-extra.js
-   ===================================================================== */
-
-/* Mantém front e backend alinhados (evita o toast de "atualize os arquivos") */
 var VERSAO_FRONT = 11;
-
-
 /* =====================================================================
    1 e 2 — FILA OFFLINE
    ===================================================================== */
