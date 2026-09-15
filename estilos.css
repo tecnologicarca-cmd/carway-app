@@ -1356,3 +1356,6 @@ body.com-banner-offline .faixa-instalar {
 body.tema-claro .faixa-instalar {
   box-shadow: 0 12px 34px rgba(15, 23, 42, .16);
 }
+/* CARWAY v13.1.0 - ENERGIA */
+.energia-bloco{border:1px solid var(--linha);border-radius:12px;padding:11px;margin-top:10px;background:rgba(255,255,255,.015)}
+.energia-bloco .cc-aguarda{margin:10px 0 0}
