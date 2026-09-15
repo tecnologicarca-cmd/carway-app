@@ -23,7 +23,7 @@ var CARWAY_CONFIG = {
   /* Versao dos arquivos estaticos. Ao mudar, o service worker
      descarta o cache antigo e busca tudo de novo. Suba este numero
      sempre que alterar index, estilos ou script. */
-  versao: '11.0.0'
+  versao: '11.0.2'
 };
 
 
@@ -102,8 +102,10 @@ function limparUrlSensivel() {
    que o Apps Script nao responde.
    --------------------------------------------------------------------- */
 
-function api(funcao) {
-  var args = Array.prototype.slice.call(arguments, 1);
+/**
+ * Uma tentativa isolada de chamada.
+ */
+function _apiTentativa(funcao, args) {
 
   return fetch(CARWAY_CONFIG.api, {
     method: 'POST',
@@ -122,10 +124,27 @@ function api(funcao) {
     });
   })
   .then(function (r) {
+
+    /* O Apps Script responde com um redirecionamento para
+       script.googleusercontent.com. Esse endereco e temporario e,
+       de vez em quando, expira antes do navegador segui-lo — e ai
+       volta 404 com corpo vazio.
+
+       Isso NAO significa que o servidor recusou a chamada: e uma
+       instabilidade conhecida da infraestrutura do Google. Marcamos
+       como "transitorio" para que valha a pena tentar de novo. */
+    if (r.status === 404 || r.status === 429 ||
+        r.status === 500 || r.status === 502 ||
+        r.status === 503 || r.status === 504) {
+      var erroHttp = new Error('Servidor ocupado (HTTP ' + r.status + ')');
+      erroHttp.transitorio = true;
+      throw erroHttp;
+    }
+
     if (!r.texto) {
-      throw new Error(
-        'O servidor não respondeu. Tente novamente em alguns instantes.'
-      );
+      var erroVazio = new Error('O servidor nao respondeu.');
+      erroVazio.transitorio = true;
+      throw erroVazio;
     }
 
     var j;
@@ -146,23 +165,68 @@ function api(funcao) {
     if (j && j.versao) App._versaoBackend = j.versao;
 
     if (j && j.ok === false) {
+      /* Erro de regra do servidor: repetir nao adianta */
       throw new Error(j.erro || 'Erro no servidor');
     }
 
     return j && j.hasOwnProperty('dados') ? j.dados : j;
-  })
-  .catch(function (e) {
-    /* Falha de rede vira mensagem util para o usuario */
-    if (e && e.message === 'Failed to fetch') {
-      if (!navigator.onLine) {
+  });
+}
+
+/**
+ * PONTE COM O SERVIDOR, com repeticao automatica.
+ *
+ * Por que repetir: o redirecionamento do Apps Script falha de forma
+ * intermitente, sem relacao com o seu codigo. Uma segunda tentativa
+ * quase sempre passa. O usuario nem percebe.
+ *
+ * So repetimos falhas TRANSITORIAS (rede, 404 do redirect, 5xx).
+ * Erro de regra — limite de plano, sessao invalida, sem permissao —
+ * sobe na hora, porque repetir nao mudaria o resultado.
+ */
+function api(funcao) {
+  var args = Array.prototype.slice.call(arguments, 1);
+
+  var MAX = 3;
+  var ESPERA = [0, 900, 2200];   /* ms antes de cada tentativa */
+
+  function tentar(n) {
+    return _apiTentativa(funcao, args).catch(function (e) {
+
+      var ehRede = (e && e.message === 'Failed to fetch');
+      var vale = (e && e.transitorio) || ehRede;
+
+      /* Sem internet: nao adianta insistir */
+      if (ehRede && !navigator.onLine) {
         throw new Error('Você está sem internet.');
       }
-      throw new Error(
-        'Não consegui falar com o servidor. Verifique sua conexão.'
-      );
-    }
-    throw e;
-  });
+
+      if (vale && n < MAX - 1) {
+        if (window.console) {
+          console.log('CarWay: tentativa ' + (n + 1) +
+                      ' falhou (' + e.message + '), repetindo…');
+        }
+        return new Promise(function (ok) {
+          setTimeout(ok, ESPERA[n + 1]);
+        }).then(function () { return tentar(n + 1); });
+      }
+
+      /* Acabaram as tentativas */
+      if (ehRede) {
+        throw new Error(
+          'Não consegui falar com o servidor. Verifique sua conexão.'
+        );
+      }
+      if (e && e.transitorio) {
+        throw new Error(
+          'O servidor está instável no momento. Tente novamente em instantes.'
+        );
+      }
+      throw e;
+    });
+  }
+
+  return tentar(0);
 }
 
 
