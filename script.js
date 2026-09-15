@@ -6491,6 +6491,3 @@ Offline.atualizarBanner();
     UI.toast('Arquivo salvo','ok');
   }
 };
-
- 
-
