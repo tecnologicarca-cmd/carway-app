@@ -1,4 +1,4 @@
-var CARWAY_FRONT_VERSION = '12.0.0';
+var CARWAY_FRONT_VERSION = '13.0.0';
 /* =====================================================================
    CARWAY — CAMADA DE INTEGRACAO (dominio proprio)
 
