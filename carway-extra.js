@@ -169,9 +169,11 @@ Offline.sincronizarPendentes = function () {
           falhas ? 'erro' : 'ok'
         );
       }
-      /* Recarrega para trazer os dados já consolidados do servidor */
+      /* v14.5.1 - silencioso=true: nao empilha um segundo overlay
+         de carregamento por cima da barra "Enviando…" que ja
+         apareceu durante a sincronizacao. */
       if (enviados && typeof App !== 'undefined' && App.carregar) {
-        App.carregar().catch(function () {});
+        App.carregar(false, true).catch(function () {});
       }
       return Promise.resolve(true);
     }
@@ -179,22 +181,26 @@ Offline.sincronizarPendentes = function () {
     return api('salvar', item.tabela, item.registro)
       .then(function () {
         enviados++;
+        /* v14.5.1 - remove o espelho local (LOCAL_xxx) agora que o
+           registro REAL ja foi aplicado ao DB por
+           App._aplicarSalvoNoDB (chamado automaticamente dentro do
+           api() acima). So removemos DEPOIS da confirmacao, para
+           nunca ficar um instante sem nenhum dos dois na tela. */
+        Offline._removerEspelhoLocal(item.tabela, item.id);
         Offline._pendentes = Offline._pendentes.filter(function (p) {
           return p.id !== item.id;
         });
         Offline._gravarPendentes();
         Offline._atualizarProgresso(enviados, fila.length);
+        App.render();
         return proximo(indice + 1);
       })
       .catch(function (e) {
-        /* Rede caiu de novo: para tudo e tenta mais tarde,
-           mantendo o item como pendente (não como falha). */
         if (Offline._ehFalhaDeRede(e)) {
           Offline._sincronizando = false;
           Offline.atualizarBanner();
           return Promise.resolve(false);
         }
-        /* Erro de regra: marca como falha para o usuário decidir */
         item.estado = 'falha';
         item.erro = (e && e.message) ? e.message : 'Erro ao enviar';
         item.tentativas = (item.tentativas || 0) + 1;
@@ -206,6 +212,25 @@ Offline.sincronizarPendentes = function () {
 
   return proximo(0);
 };
+
+/**
+ * Remove o espelho local (id LOCAL_xxx) criado enquanto o app
+ * estava offline, depois que o registro REAL do servidor ja foi
+ * aplicado ao DB — evita a duplicata visual que apareceria por
+ * alguns instantes ate o proximo carregamento completo.
+ */
+Offline._removerEspelhoLocal = function (tabela, pendenteId) {
+  var mapa = {
+    Abastecimentos: 'abastecimentos',
+    Manutencoes: 'manutencoes',
+    Despesas: 'despesas'
+  };
+  var destino = mapa[tabela];
+  if (!destino || !DB[destino]) return;
+  var idLocal = 'LOCAL_' + pendenteId;
+  DB[destino] = DB[destino].filter(function (r) { return r.id !== idLocal; });
+};
+
 Offline._sincronizando = false;
 
 Offline._marcarBannerSincronizando = function () {
