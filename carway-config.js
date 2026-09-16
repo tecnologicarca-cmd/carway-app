@@ -1,4 +1,4 @@
-var CARWAY_FRONT_VERSION = '14.3.0';
+var CARWAY_FRONT_VERSION = '14.3.1';
 /* =====================================================================
    CARWAY — CAMADA DE INTEGRACAO (dominio proprio)
 
@@ -24,7 +24,7 @@ var CARWAY_CONFIG = {
   /* Versao dos arquivos estaticos. Ao mudar, o service worker
      descarta o cache antigo e busca tudo de novo. Suba este numero
      sempre que alterar index, estilos ou script. */
-  versao: '14.3.0'
+  versao: '14.3.1'
 };
 
 
