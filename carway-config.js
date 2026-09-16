@@ -164,13 +164,19 @@ function _apiTentativa(funcao, args) {
     }
 
     if (j && j.versao) App._versaoBackend = j.versao;
-
     if (j && j.ok === false) {
       /* Erro de regra do servidor: repetir nao adianta */
       throw new Error(j.erro || 'Erro no servidor');
     }
-
-    return j && j.hasOwnProperty('dados') ? j.dados : j;
+    var dados = j && j.hasOwnProperty('dados') ? j.dados : j;
+    /* v14.5 - Atualiza a lista local IMEDIATAMENTE quando a chamada
+       e um "salvar" generico, para o registro aparecer na tela sem
+       esperar o recalculo completo do carregarApp(). */
+    if (funcao === 'salvar' && dados && dados.registro &&
+        typeof App !== 'undefined' && App._aplicarSalvoNoDB) {
+      try { App._aplicarSalvoNoDB(args[0], dados.registro); } catch (e) {}
+    }
+    return dados;
   });
 }
 
