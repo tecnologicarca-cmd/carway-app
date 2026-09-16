@@ -4966,7 +4966,7 @@ var Viagem = {
         '<small>' + (p.endereco ? U.esc(p.endereco) : 'endereço não informado') + '</small>' +
         (tags.length ? '<div class="pi-tags">' + tags.join('') + '</div>' : '') + '</div>' +
         '<div class="pi-dist"><b>' + U.num(p.desvioKm, 1) + '</b><small>km</small>' +
-        '<a class+ '' +
+        '<a class="pi-ir" href="' + url + '" target="_blank" rel="no
         '<span class="ms">navigation</span></a></div></div>';
     }
 
