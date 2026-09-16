@@ -1,21 +1,18 @@
-var CARWAY_FRONT_VERSION = '14.3.1';
+var CARWAY_FRONT_VERSION = '14.5';
+
 /* =====================================================================
    CARWAY — CAMADA DE INTEGRACAO (dominio proprio)
-
    Este arquivo substitui tudo o que dependia do Apps Script:
      - google.script.run   ->  fetch para a API
      - google.script.url   ->  URLSearchParams
      - CONVITE_TOKEN       ->  parametro da URL
-
    Carregue ANTES do script.js no index.html.
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
    CONFIGURACAO — o unico lugar que voce edita
    --------------------------------------------------------------------- */
-
 var CARWAY_CONFIG = {
-
   /* URL /exec da implantacao de PRODUCAO do Apps Script.
      Se um dia voce republicar criando implantacao NOVA,
      troque aqui. */
@@ -24,14 +21,12 @@ var CARWAY_CONFIG = {
   /* Versao dos arquivos estaticos. Ao mudar, o service worker
      descarta o cache antigo e busca tudo de novo. Suba este numero
      sempre que alterar index, estilos ou script. */
-  versao: '14.3.1'
+  versao: '14.5'
 };
-
 
 /* ---------------------------------------------------------------------
    SESSAO DO APARELHO
    --------------------------------------------------------------------- */
-
 var CARWAY_SESSAO = { token: '' };
 var CARWAY_CHAVE_SESSAO = 'carway_sessao_v1';
 
@@ -55,13 +50,10 @@ function limparSessaoLocal() {
   gravarSessaoLocal('');
 }
 
-
 /* ---------------------------------------------------------------------
    PARAMETROS DA URL
-
    Fora do Apps Script nao existe google.script.url — a URL e direta.
    --------------------------------------------------------------------- */
-
 function lerParametroUrl(nome) {
   try {
     var p = new URLSearchParams(window.location.search);
@@ -78,27 +70,21 @@ function lerParametroUrl(nome) {
 function limparUrlSensivel() {
   try {
     if (!window.history || !window.history.replaceState) return;
-
     var p = new URLSearchParams(window.location.search);
     if (!p.has('sessao') && !p.has('convite')) return;
-
     p.delete('sessao');
     p.delete('convite');
-
     var q = p.toString();
     var nova = window.location.pathname + (q ? '?' + q : '');
     window.history.replaceState({}, document.title, nova);
   } catch (e) {}
 }
 
-
 /* ---------------------------------------------------------------------
    PONTE COM O SERVIDOR
-
    Mesma assinatura de sempre:
        api('carregarApp')
        api('salvar', 'Veiculos', registro)
-
    O Content-Type text/plain e proposital: evita o preflight OPTIONS,
    que o Apps Script nao responde.
    --------------------------------------------------------------------- */
@@ -107,7 +93,6 @@ function limparUrlSensivel() {
  * Uma tentativa isolada de chamada.
  */
 function _apiTentativa(funcao, args) {
-
   return fetch(CARWAY_CONFIG.api, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -125,12 +110,10 @@ function _apiTentativa(funcao, args) {
     });
   })
   .then(function (r) {
-
     /* O Apps Script responde com um redirecionamento para
        script.googleusercontent.com. Esse endereco e temporario e,
        de vez em quando, expira antes do navegador segui-lo — e ai
        volta 404 com corpo vazio.
-
        Isso NAO significa que o servidor recusou a chamada: e uma
        instabilidade conhecida da infraestrutura do Google. Marcamos
        como "transitorio" para que valha a pena tentar de novo. */
@@ -141,13 +124,11 @@ function _apiTentativa(funcao, args) {
       erroHttp.transitorio = true;
       throw erroHttp;
     }
-
     if (!r.texto) {
       var erroVazio = new Error('O servidor nao respondeu.');
       erroVazio.transitorio = true;
       throw erroVazio;
     }
-
     var j;
     try {
       j = JSON.parse(r.texto);
@@ -162,20 +143,25 @@ function _apiTentativa(funcao, args) {
       }
       throw new Error('Resposta inválida do servidor.');
     }
-
     if (j && j.versao) App._versaoBackend = j.versao;
     if (j && j.ok === false) {
       /* Erro de regra do servidor: repetir nao adianta */
       throw new Error(j.erro || 'Erro no servidor');
     }
+
     var dados = j && j.hasOwnProperty('dados') ? j.dados : j;
+
     /* v14.5 - Atualiza a lista local IMEDIATAMENTE quando a chamada
        e um "salvar" generico, para o registro aparecer na tela sem
-       esperar o recalculo completo do carregarApp(). */
+       esperar o recalculo completo do carregarApp(). Se o registro
+       nao vier no formato esperado ou App._aplicarSalvoNoDB ainda
+       nao tiver sido carregado (ordem dos <script>), simplesmente
+       ignora e segue o fluxo antigo normalmente. */
     if (funcao === 'salvar' && dados && dados.registro &&
         typeof App !== 'undefined' && App._aplicarSalvoNoDB) {
       try { App._aplicarSalvoNoDB(args[0], dados.registro); } catch (e) {}
     }
+
     return dados;
   });
 }
@@ -193,13 +179,11 @@ function _apiTentativa(funcao, args) {
  */
 function api(funcao) {
   var args = Array.prototype.slice.call(arguments, 1);
-
   var MAX = 3;
   var ESPERA = [0, 900, 2200];   /* ms antes de cada tentativa */
 
   function tentar(n) {
     return _apiTentativa(funcao, args).catch(function (e) {
-
       var ehRede = (e && e.message === 'Failed to fetch');
       var vale = (e && e.transitorio) || ehRede;
 
@@ -236,30 +220,22 @@ function api(funcao) {
   return tentar(0);
 }
 
-
 /* ---------------------------------------------------------------------
    SERVICE WORKER
-
    Aqui, sim, funciona de verdade — estamos fora do iframe.
    --------------------------------------------------------------------- */
-
 var CarWaySW = {
-
   registro: null,
-
   registrar: function () {
     if (!('serviceWorker' in navigator)) return;
-
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js')
         .then(function (reg) {
           CarWaySW.registro = reg;
-
           /* Avisa quando houver versao nova esperando */
           reg.addEventListener('updatefound', function () {
             var novo = reg.installing;
             if (!novo) return;
-
             novo.addEventListener('statechange', function () {
               if (novo.state === 'installed' &&
                   navigator.serviceWorker.controller) {
@@ -275,10 +251,8 @@ var CarWaySW = {
         });
     });
   },
-
   avisarAtualizacao: function () {
     if (typeof UI === 'undefined' || !UI.modal) return;
-
     UI.modal('Nova versão disponível',
       '<div class="aviso info"><span class="ms">system_update</span><div>' +
       '<b>O CarWay foi atualizado</b>' +
@@ -286,14 +260,12 @@ var CarWaySW = {
       function () { CarWaySW.aplicarAtualizacao(); },
       'Atualizar agora');
   },
-
   aplicarAtualizacao: function () {
     if (CarWaySW.registro && CarWaySW.registro.waiting) {
       CarWaySW.registro.waiting.postMessage({ acao: 'ATIVAR' });
     }
     setTimeout(function () { location.reload(); }, 300);
   },
-
   limparCache: function () {
     if (!('caches' in window)) return Promise.resolve();
     return caches.keys().then(function (nomes) {
