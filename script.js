@@ -5865,18 +5865,12 @@ App.abrirAbastecimentoMenu = function () {
         '<div><b>Novo abastecimento</b><small>Lançar litros, preço e posto</small></div>' +
         '<span class="ms seta">chevron_right</span>' +
       '</button>' +
-      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaPostos()">' +
-        '<span class="ms">travel_explore</span>' +
-        '<div><b>Buscar postos</b><small>Num raio à sua escolha</small></div>' +
-        '<span class="ms seta">chevron_right</span>' +
-      '</button>' +
-      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaRecargas()">' +
+      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaApoio()">' +
         '<span class="ms">ev_station</span>' +
-        '<div><b>Buscar recargas</b><small>Estações elétricas próximas</small></div>' +
+        '<div><b>Postos e recargas</b><small>Combustível e recarga elétrica por perto</small></div>' +
         '<span class="ms seta">chevron_right</span>' +
       '</button>' +
     '</div>';
-
   UI.modal('Abastecimento', html, null);
 };
 
