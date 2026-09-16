@@ -1273,26 +1273,62 @@ Viagem.configurarVeiculoPlanejador = function(id){
     }, 150);
   };
 
+/**
+   * Verifica se a rota e viavel para um veiculo eletrico, comparando
+   * a autonomia disponivel com a distancia entre os pontos que tem
+   * estacao de recarga.
+   *
+   * Aceita ser chamada com o planejador aberto (usa os campos do
+   * formulario) ou sem ele (usa o cadastro do veiculo).
+   */
   Viagem.validarCoberturaEletrica = function (rota, veiculo) {
+    /* ---- Origem dos dados: formulario primeiro, cadastro depois ---- */
+    var v = veiculo || U.veic(UI.v('pVeic')) || U.veicAtual() || {};
+    var consumoV = v.consumo || {};
+
     var eficiencia = UI.n('pKmL');
+    if (eficiencia <= 0) {
+      eficiencia = Number(
+        consumoV.mediaEficiencia || consumoV.mediaKmL || 0
+      ) || 0;
+    }
+
     var capacidade = UI.n('pTanque');
+    if (capacidade <= 0) {
+      capacidade = Number(
+        v.bateriaKwh || v.capacidadeBateria || v.tanque || 0
+      ) || 0;
+    }
+
     var nivel = UI.n('pNivel') || 100;
     var reserva = UI.n('pReserva') || 15;
+
     var autonomiaCheia = eficiencia * capacidade * (1 - reserva / 100);
     var autonomiaInicial = eficiencia * capacidade *
       Math.max(0, nivel - reserva) / 100;
 
     if (autonomiaCheia <= 0) {
-      UI.toast('Informe eficiência e capacidade da bateria para validar a rota.', 'erro');
+      var faltando = [];
+      if (eficiencia <= 0) faltando.push('a eficiência (km/kWh)');
+      if (capacidade <= 0) faltando.push('a capacidade da bateria (kWh)');
+
+      UI.toast(
+        'Cadastre ' + faltando.join(' e ') + ' em Veículos › Editar ' +
+        'para validar a rota elétrica.',
+        'erro'
+      );
       return Promise.resolve(false);
     }
 
-    var pontos = rota && rota.pontosApoio && rota.pontosApoio.length
+    var pontos = (rota && rota.pontosApoio && rota.pontosApoio.length)
       ? rota.pontosApoio
-      : (rota && rota.pontosParada || []);
+      : ((rota && rota.pontosParada) || []);
 
     if (!pontos.length) {
-      UI.toast('A rota não forneceu pontos suficientes para verificar recargas.', 'erro');
+      UI.toast(
+        'A rota não forneceu pontos suficientes para verificar recargas.',
+        'erro'
+      );
       return Promise.resolve(false);
     }
 
@@ -1306,18 +1342,23 @@ Viagem.configurarVeiculoPlanejador = function(id){
       UI.load(false);
       grupos = grupos || [];
 
+      /* Km dos pontos que realmente tem estacao de recarga */
       var posicoes = [];
       grupos.forEach(function (grupo) {
         if ((grupo.recargas || []).length) {
           posicoes.push(Number(grupo.kmAcum || 0));
         }
       });
-      posicoes = posicoes.filter(function (km) { return km > 0; })
+
+      posicoes = posicoes
+        .filter(function (km) { return km > 0; })
         .sort(function (a, b) { return a - b; });
 
       var total = Number(
-        rota.km || rota.distanciaKm || rota.distancia || 0
+        (rota && (rota.km || rota.distanciaKm || rota.distancia)) || 0
       ) || 0;
+
+      /* Maior trecho sem recarga */
       var anterior = 0;
       var maiorTrecho = 0;
 
@@ -1333,52 +1374,86 @@ Viagem.configurarVeiculoPlanejador = function(id){
       }
 
       var primeiroTrecho = posicoes.length ? posicoes[0] : total;
-      var viavel = posicoes.length > 0 &&
+
+      var viavel =
+        posicoes.length > 0 &&
         primeiroTrecho <= autonomiaInicial &&
         maiorTrecho <= autonomiaCheia;
+
       var deficit = Math.max(0, maiorTrecho - autonomiaCheia);
+      var energiaNecessaria = eficiencia > 0 ? (total / eficiencia) : 0;
 
       rota.validacaoEletrica = {
         viavel: viavel,
         autonomiaSegura: Math.round(autonomiaCheia),
         autonomiaInicial: Math.round(autonomiaInicial),
         maiorTrecho: Math.round(maiorTrecho),
+        primeiroTrecho: Math.round(primeiroTrecho),
         deficit: Math.round(deficit),
-        pontosComRecarga: posicoes.length
+        pontosComRecarga: posicoes.length,
+        energiaNecessaria: Math.round(energiaNecessaria * 10) / 10,
+        eficienciaUsada: eficiencia,
+        capacidadeUsada: capacidade
       };
+
+      /* Explica o motivo real da inviabilidade */
+      var motivo = '';
+      if (!viavel) {
+        if (!posicoes.length) {
+          motivo = 'Nenhuma estação de recarga foi localizada ao longo ' +
+            'do trajeto.';
+        } else if (primeiroTrecho > autonomiaInicial) {
+          motivo = 'Com a bateria em ' + nivel + '%, a primeira estação ' +
+            'está a ' + Math.round(primeiroTrecho) + ' km, além dos ' +
+            Math.round(autonomiaInicial) + ' km disponíveis agora.';
+        } else {
+          motivo = 'Existe um trecho de ' + Math.round(maiorTrecho) +
+            ' km sem recarga, acima dos ' + Math.round(autonomiaCheia) +
+            ' km de autonomia segura.';
+        }
+      }
 
       var html =
         '<div class="aviso ' + (viavel ? 'verde' : '') + '">' +
-        '<span class="ms">' + (viavel ? 'check_circle' : 'warning') + '</span><div>' +
-        '<b>' + (viavel ? 'Viagem elétrica viável' : 'Viagem elétrica não recomendada') + '</b>' +
+        '<span class="ms">' + (viavel ? 'check_circle' : 'warning') +
+        '</span><div>' +
+        '<b>' + (viavel ? 'Viagem elétrica viável'
+                        : 'Viagem elétrica não recomendada') + '</b>' +
         (viavel
-          ? 'Foi encontrada uma sequência de recargas compatível com a autonomia segura.'
-          : 'Não foi encontrada uma sequência segura de recargas para todos os trechos.') +
+          ? 'Foi encontrada uma sequência de recargas compatível com a ' +
+            'autonomia segura.'
+          : motivo) +
         '</div></div>' +
+
         '<div class="cc-grid">' +
-        '<div><b>' + Math.round(autonomiaCheia) + '</b><small>km autonomia segura</small></div>' +
-        '<div><b>' + Math.round(maiorTrecho) + '</b><small>km maior trecho</small></div>' +
-        '<div><b>' + posicoes.length + '</b><small>pontos com recarga</small></div>' +
-        '<div><b>' + Math.round(deficit) + '</b><small>km de déficit</small></div>' +
+        '<div><b>' + Math.round(autonomiaCheia) + '</b>' +
+        '<small>km autonomia segura</small></div>' +
+        '<div><b>' + Math.round(maiorTrecho) + '</b>' +
+        '<small>km maior trecho</small></div>' +
+        '<div><b>' + posicoes.length + '</b>' +
+        '<small>pontos com recarga</small></div>' +
+        '<div><b>' + Math.round(deficit) + '</b>' +
+        '<small>km de déficit</small></div>' +
         '</div>' +
-        '<p class="dica">Confirme disponibilidade e compatibilidade do conector antes da viagem.</p>';
+
+        '<div class="cc-linha"><span>Energia prevista na viagem</span>' +
+        '<b>' + U.num(energiaNecessaria, 1) + ' kWh</b></div>' +
+        '<div class="cc-linha"><span>Base do cálculo</span>' +
+        '<b>' + U.num(eficiencia, 2) + ' km/kWh · ' +
+        U.num(capacidade, 1) + ' kWh</b></div>' +
+
+        '<p class="dica">Confirme disponibilidade e compatibilidade do ' +
+        'conector antes da viagem. Em rodovia e no frio a autonomia real ' +
+        'costuma ser menor.</p>';
 
       UI.modal('Validação da rota elétrica', html, null);
       return viavel;
+
     }).catch(function (erro) {
       UI.load(false);
       UI.toast(erro.message || 'Falha ao validar a rota elétrica', 'erro');
       return false;
     });
-  };
-
-  var carregarApoioV142 = Viagem.carregarPostos;
-  Viagem.carregarPostos = function (rota) {
-    var v = U.veic(UI.v('pVeic')) || U.veicAtual();
-    if (!ehEletrico(v)) {
-      return carregarApoioV142.call(Viagem, rota);
-    }
-    return Viagem.validarCoberturaEletrica(rota, v);
   };
 
   var planoPadraoV142 = App.planoPadrao;
