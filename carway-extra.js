@@ -601,6 +601,120 @@ App.checarVersao = function () {
   }
 };
 
+/* =====================================================================
+   CARWAY v14.5 - CARREGAMENTO RAPIDO E SALVAMENTO SEM TRAVAR A TELA
+   ===================================================================== */
+
+/* Aplica localmente o registro que acabou de ser salvo, sem esperar
+   o carregarApp() completo recalcular consumo/alertas/orcamento. */
+App._aplicarSalvoNoDB = function (tabela, registro) {
+  var mapa = {
+    Veiculos: 'veiculos',
+    Viagens: 'viagens',
+    Despesas: 'despesas',
+    Abastecimentos: 'abastecimentos',
+    Manutencoes: 'manutencoes',
+    Planos: 'planos'
+  };
+  var chave = mapa[tabela];
+  if (!chave || !registro || !registro.id) return;
+  DB[chave] = DB[chave] || [];
+  var indice = -1;
+  for (var i = 0; i < DB[chave].length; i++) {
+    if (String(DB[chave][i].id) === String(registro.id)) { indice = i; break; }
+  }
+  if (indice >= 0) {
+    for (var campo in registro) {
+      if (registro.hasOwnProperty(campo)) DB[chave][indice][campo] = registro[campo];
+    }
+  } else {
+    DB[chave].push(registro);
+  }
+  App.render();
+};
+
+/* A gravacao ja terminou com sucesso quando chegamos aqui - liberamos
+   a tela na hora; o recalculo pesado roda em segundo plano. */
+App.aposSalvar = function (msg, extra) {
+  UI.load(false);
+  if (msg) UI.toast(msg, 'ok');
+  if (!navigator.onLine) {
+    App.render();
+    if (typeof extra === 'function') extra();
+    return Promise.resolve(true);
+  }
+  return App.carregar(false, true).then(function () {
+    if (VIAGEM_ABERTA && U.viagem(VIAGEM_ABERTA)) {
+      App.abrirViagem(VIAGEM_ABERTA, true);
+    }
+    if (typeof extra === 'function') extra();
+    return true;
+  }).catch(function (e) {
+    if (window.console) console.warn('CarWay: falha ao atualizar em segundo plano - ' + e.message);
+    if (typeof extra === 'function') extra();
+    return true;
+  });
+};
+
+/* Aceita um segundo parametro "silencioso" para atualizar sem
+   mostrar o overlay de carregamento cheio de novo. */
+App.carregar = function (primeira, silencioso) {
+  if (!primeira && !silencioso) UI.load(true, 'Atualizando…');
+  return api('carregarApp').then(function (d) {
+    if (!d || typeof d !== 'object') throw new Error('O servidor devolveu dados vazios.');
+    var base = dbVazio();
+    for (var k in base) if (d[k] === undefined || d[k] === null) d[k] = base[k];
+    DB = d;
+    APP_PRONTO = true;
+    if (primeira && DB.hoje) {
+      var p = DB.hoje.split('-');
+      if (p.length === 3) { FILTRO.ano = parseInt(p[0], 10); FILTRO.mes = parseInt(p[1], 10); }
+    }
+    App.montarSeletor();
+    App.render();
+    UI.load(false);
+    App.fecharSplash();
+    App.checarVersao();
+    App.atualizarSininho();
+    if (primeira && !DB.veiculos.length) setTimeout(function () { App.formVeiculo(true); }, 600);
+    return d;
+  }).catch(function (e) {
+    UI.load(false);
+    App.fecharSplash();
+    var msg = e.message || '';
+    if (msg.indexOf('SEM_SESSAO') === 0 || msg.indexOf('SESSAO_INVALIDA') === 0) {
+      limparSessaoLocal();
+      App.telaSemAcesso('SEM_SESSAO', '');
+    } else if (msg.indexOf('SEM_CONTA:') === 0) {
+      App.telaSemAcesso('SEM_CONTA', msg.substring(10));
+    } else if (msg.indexOf('SEM_ORGANIZACAO:') === 0) {
+      App.telaSemAcesso('SEM_ORGANIZACAO', msg.substring(16));
+    } else if (msg.indexOf('ORGANIZACAO_INATIVA:') === 0) {
+      App.telaSemAcesso('ORGANIZACAO_INATIVA', msg.substring(20));
+    } else if (msg.indexOf('PLANILHA_NAO_CONFIGURADA') === 0 || msg.indexOf('PLANILHA_SEM_ACESSO') === 0) {
+      App.erroFatal('O aplicativo ainda nao foi configurado pelo proprietario. Peca para ele republicar a implantacao com "Executar como: Eu (proprietario)" e "Quem tem acesso: Qualquer pessoa".');
+    } else {
+      App.erroFatal(msg || 'Falha ao carregar os dados');
+    }
+    throw e;
+  });
+};
+
+/* Mostra o Menu na hora, sem esperar o carregarApp() completo
+   (que recalcula consumo, alertas e orcamento de tudo). */
+App.iniciar = function () {
+  var d = new Date();
+  FILTRO.ano = d.getFullYear();
+  FILTRO.mes = d.getMonth() + 1;
+  App.fecharSplash();
+  App.irParaMenu();
+  App.renderMenu();
+  return App.carregar(true, true).then(function () {
+    return true;
+  }).catch(function () {
+    return false;
+  });
+};
 
 /* =====================================================================
    BOOT
