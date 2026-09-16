@@ -13,7 +13,7 @@
    arquivo antigo do cache.
    ===================================================================== */
 
-var VERSAO = 'carway-v14.3.0';
+var VERSAO = 'carway-v14.3.1';
 
 var CACHE_SHELL = VERSAO + '-shell';
 var CACHE_EXTERNO = VERSAO + '-externo';
@@ -30,7 +30,8 @@ var ARQUIVOS_SHELL = [
   './manifest.json',
   './icones/carway-192.png',
   './icones/carway-512.png',
-  './icones/carway-180.png'
+  './icones/carway-180.png',
+  './icones/carway-32.png'
 ];
 
 /* Dominios que nao podem passar pelo cache em hipotese alguma */
