@@ -5036,9 +5036,6 @@ var Viagem = {
 
 /* =====================================================================
    CARWAY v9 - EQUIPE (frontend)
-
-   Cole este bloco no Script.html, imediatamente ANTES da linha:
-       /* ---------------- Boot ---------------- *[/]
    ===================================================================== */
 
 App._meuPerfil = null;
