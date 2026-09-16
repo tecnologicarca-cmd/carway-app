@@ -4947,28 +4947,70 @@ var Viagem = {
       U.esc(d.centro.nome || '') + ' · raio de ' + d.raioUsado + ' km</div>' + chips;
 
     function itemHTML(p, tipo) {
-      var recarga = (tipo === 'recarga');
-      var tags = [];
-      if (p.h24 || p.abertoAgora) tags.push('<span class="pt-tag h24">Aberto agora</span>');
-      if (n(p.rating) > 0) tags.push('<span class="pt-tag">⭐ ' + U.num(p.rating, 1) + '</span>');
-      if (recarga && n(p.potenciaMaximaKw) > 0) {
-        tags.push('<span class="pt-tag">' + U.num(p.potenciaMaximaKw, 0) + ' kW</span>');
-      }
-      if (p.fonte === 'OCM') tags.push('<span class="pt-tag">Open Charge Map</span>');
-      if (p.fonte === 'GOOGLE+OCM') tags.push('<span class="pt-tag">Google + OCM</span>');
+  var recarga = (tipo === 'recarga');
+  var tags = [];
+  if (p.h24 || p.abertoAgora) {
+    tags.push('<span class="pt-tag h24">Aberto agora</span>');
+  }
+  if (n(p.rating) > 0) {
+    tags.push(
+      '<span class="pt-tag">⭐ ' +
+      U.num(p.rating, 1) +
+      '</span>'
+    );
+  }
+  if (recarga && n(p.potenciaMaximaKw) > 0) {
+    tags.push(
+      '<span class="pt-tag">' +
+      U.num(p.potenciaMaximaKw, 0) +
+      ' kW</span>'
+    );
+  }
+  if (p.fonte === 'OCM') {
+    tags.push('<span class="pt-tag">Open Charge Map</span>');
+  }
+  if (p.fonte === 'GOOGLE+OCM') {
+    tags.push('<span class="pt-tag">Google + OCM</span>');
+  }
 
-      var url = p.googleMapsUri || (URL_MAPS_DIR + p.lat + ',' + p.lon);
+  var url = p.googleMapsUri ||
+    (URL_MAPS_DIR + p.lat + ',' + p.lon);
 
-      return '<div class="posto-item">' +
-        '<div class="pi-ico' + (recarga ? ' recarga' : '') + '">' +
-        '<span class="ms">' + (recarga ? 'ev_station' : 'local_gas_station') + '</span></div>' +
-        '<div class="pi-txt"><b>' + U.esc(p.nome) + '</b>' +
-        '<small>' + (p.endereco ? U.esc(p.endereco) : 'endereço não informado') + '</small>' +
-        (tags.length ? '<div class="pi-tags">' + tags.join('') + '</div>' : '') + '</div>' +
-        '<div class="pi-dist"><b>' + U.num(p.desvioKm, 1) + '</b><small>km</small>' +
-        '<a class="pi-ir" href="' + url + '" target="_blank" rel="noopener">'
-        '<span class="ms">navigation</span></a></div></div>';
-    }
+  var icone = recarga ? 'ev_station' : 'local_gas_station';
+  var classeIco = recarga ? ' recarga' : '';
+  var enderecoTxt = p.endereco
+    ? U.esc(p.endereco)
+    : 'endereço não informado';
+  var tagsHtml = tags.length
+    ? '<div class="pi-tags">' + tags.join('') + '</div>'
+    : '';
+
+  var linkAbrir =
+    '<a class="pi-ir" ' +
+    'href="' + url + '" ' +
+    'target="_blank" ' +
+    'rel="noopener">';
+
+  return (
+    '<div class="posto-item">' +
+    '<div class="pi-ico' + classeIco + '">' +
+    '<span class="ms">' + icone + '</span>' +
+    '</div>' +
+    '<div class="pi-txt">' +
+    '<b>' + U.esc(p.nome) + '</b>' +
+    '<small>' + enderecoTxt + '</small>' +
+    tagsHtml +
+    '</div>' +
+    '<div class="pi-dist">' +
+    '<b>' + U.num(p.desvioKm, 1) + '</b>' +
+    '<small>km</small>' +
+    linkAbrir +
+    '<span class="ms">navigation</span>' +
+    '</a>' +
+    '</div>' +
+    '</div>'
+  );
+}
 
     var itens = [];
     if (filtro === 'todos' || filtro === 'posto') {
