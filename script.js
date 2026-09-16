@@ -5347,9 +5347,16 @@ App.mostrarBoasVindas = function (nomeOrganizacao) {
         '<small>No topo da tela, o ícone do carro sempre te leva de volta ao Menu.</small></div>' +
       '</div>' +
     '</div>';
-
   UI.modal('Como usar o CarWay', html, function () {
     UI.fecharModal();
+    /* v14.8 - Aproveita o momento em que a pessoa acabou de
+       aceitar o convite (ainda engajada) para sugerir instalar
+       o app, em vez de deixar isso solto 9s depois sem contexto. */
+    if (typeof Instalador !== 'undefined' && Instalador.podeConvidar()) {
+      setTimeout(function () {
+        Instalador.mostrarFaixa('boas-vindas');
+      }, 600);
+    }
   }, 'Entendi, vamos lá');
 };
 
