@@ -1,4 +1,5 @@
 var VERSAO_FRONT = 14;
+
 /* =====================================================================
    1 e 2 — FILA OFFLINE
    ===================================================================== */
@@ -20,9 +21,7 @@ Offline._novoId = function () {
  */
 Offline._ehFalhaDeRede = function (erro) {
   if (!navigator.onLine) return true;
-
   var m = String((erro && erro.message) || erro || '').toLowerCase();
-
   return m.indexOf('failed to fetch') > -1 ||
          m.indexOf('sem internet') > -1 ||
          m.indexOf('networkerror') > -1 ||
@@ -45,14 +44,12 @@ Offline._ehFalhaDeRede = function (erro) {
  * @param {string} resumo   Texto curto para a tela de pendentes
  */
 Offline.salvarComFallback = function (tabela, registro, resumo) {
-
   /* Já está offline: nem tenta a rede */
   if (!navigator.onLine) {
     return Promise.resolve(
       Offline._enfileirar(tabela, registro, resumo, '')
     );
   }
-
   return api('salvar', tabela, registro)
     .then(function (r) {
       /* Deu certo online. Se havia pendentes, aproveita a janela
@@ -63,13 +60,11 @@ Offline.salvarComFallback = function (tabela, registro, resumo) {
       return r;
     })
     .catch(function (e) {
-
       /* Erro de regra do servidor: não enfileira, devolve o erro
          para o formulário mostrar a mensagem certa. */
       if (!Offline._ehFalhaDeRede(e)) {
         throw e;
       }
-
       return Offline._enfileirar(
         tabela, registro, resumo,
         (e && e.message) ? e.message : ''
@@ -82,7 +77,6 @@ Offline.salvarComFallback = function (tabela, registro, resumo) {
  * formato de api('salvar'), para não quebrar quem chamou.
  */
 Offline._enfileirar = function (tabela, registro, resumo, erro) {
-
   var item = {
     id: Offline._novoId(),
     tabela: tabela,
@@ -93,7 +87,6 @@ Offline._enfileirar = function (tabela, registro, resumo, erro) {
     tentativas: 0,
     criadoEm: new Date().toISOString()
   };
-
   Offline._pendentes.push(item);
   Offline._gravarPendentes();
   Offline.atualizarBanner();
@@ -130,15 +123,11 @@ Offline._espelharNoDB = function (tabela, registro, pendenteId) {
     Manutencoes: 'manutencoes',
     Despesas: 'despesas'
   }[tabela];
-
   if (!destino || !DB || !DB[destino]) return;
-
   var copia = {};
   for (var k in registro) copia[k] = registro[k];
-
   if (!copia.id) copia.id = 'LOCAL_' + pendenteId;
   copia._pendente = 1;
-
   DB[destino].push(copia);
 };
 
@@ -149,10 +138,8 @@ Offline._espelharNoDB = function (tabela, registro, pendenteId) {
  * durante a escrita, e disparar tudo junto só gera erro de lock.
  */
 Offline.sincronizarPendentes = function () {
-
   if (Offline._sincronizando) return Promise.resolve(false);
   if (!Offline._pendentes.length) return Promise.resolve(true);
-
   if (!navigator.onLine) {
     if (typeof UI !== 'undefined' && UI.toast) {
       UI.toast('Sem internet — vou tentar quando a conexão voltar', 'erro');
@@ -166,18 +153,15 @@ Offline.sincronizarPendentes = function () {
   var fila = Offline._pendentes.filter(function (p) {
     return p.estado !== 'falha';
   });
-
   var enviados = 0;
   var falhas = 0;
 
   function proximo(indice) {
-
     if (indice >= fila.length) {
       Offline._sincronizando = false;
       Offline._gravarPendentes();
       Offline.atualizarBanner();
       Offline.renderSincronizador();
-
       if (enviados && typeof UI !== 'undefined' && UI.toast) {
         UI.toast(
           enviados + ' lançamento(s) enviado(s)' +
@@ -185,17 +169,13 @@ Offline.sincronizarPendentes = function () {
           falhas ? 'erro' : 'ok'
         );
       }
-
       /* Recarrega para trazer os dados já consolidados do servidor */
       if (enviados && typeof App !== 'undefined' && App.carregar) {
         App.carregar().catch(function () {});
       }
-
       return Promise.resolve(true);
     }
-
     var item = fila[indice];
-
     return api('salvar', item.tabela, item.registro)
       .then(function () {
         enviados++;
@@ -207,7 +187,6 @@ Offline.sincronizarPendentes = function () {
         return proximo(indice + 1);
       })
       .catch(function (e) {
-
         /* Rede caiu de novo: para tudo e tenta mais tarde,
            mantendo o item como pendente (não como falha). */
         if (Offline._ehFalhaDeRede(e)) {
@@ -215,13 +194,11 @@ Offline.sincronizarPendentes = function () {
           Offline.atualizarBanner();
           return Promise.resolve(false);
         }
-
         /* Erro de regra: marca como falha para o usuário decidir */
         item.estado = 'falha';
         item.erro = (e && e.message) ? e.message : 'Erro ao enviar';
         item.tentativas = (item.tentativas || 0) + 1;
         falhas++;
-
         Offline._gravarPendentes();
         return proximo(indice + 1);
       });
@@ -229,22 +206,18 @@ Offline.sincronizarPendentes = function () {
 
   return proximo(0);
 };
-
 Offline._sincronizando = false;
 
 Offline._marcarBannerSincronizando = function () {
   var banner = $('bannerOffline');
   if (!banner) return;
-
   banner.classList.remove('oculto');
   banner.classList.add('visivel');
   document.body.classList.add('com-banner-offline');
-
   banner.classList.remove(
     'estado-offline', 'estado-pendente', 'estado-erro', 'estado-ok'
   );
   banner.classList.add('estado-sincronizando');
-
   setTexto('boIcone', 'cloud_sync');
   setTexto('boTitulo', 'Enviando…');
   setTexto('boSub', 'Sincronizando seus lançamentos');
@@ -263,22 +236,17 @@ Offline.sincronizarAgora = function () {
   });
 };
 
-
 /**
  * Acrescenta o botão "Enviar agora" no topo da tela de pendentes.
  * (a versão original da tela não tinha como disparar manualmente)
  */
 Offline._renderOriginal = Offline.renderSincronizador;
-
 Offline.renderSincronizador = function () {
   Offline._renderOriginal();
-
   var lista = $('sincLista');
   if (!lista || !Offline._pendentes.length) return;
   if ($('btnSincronizarAgora')) return;
-
   var podeEnviar = navigator.onLine && !Offline._sincronizando;
-
   var botao =
     '<button id="btnSincronizarAgora" class="btn primario bloco-full" ' +
       'style="margin-bottom:14px"' + (podeEnviar ? '' : ' disabled') + ' ' +
@@ -286,17 +254,13 @@ Offline.renderSincronizador = function () {
       '<span class="ms">cloud_upload</span> ' +
       (podeEnviar ? 'Enviar agora' : 'Sem conexão') +
     '</button>';
-
   lista.insertAdjacentHTML('beforebegin', botao);
 };
-
 
 /* =====================================================================
    3 — INSTALADOR
    ===================================================================== */
-
 var Instalador = {
-
   _chaveEstado: 'carway_instalador_v1',
   _promptNativo: null,
 
@@ -324,31 +288,25 @@ var Instalador = {
   detectar: function () {
     var ua = '';
     try { ua = (navigator.userAgent || '').toLowerCase(); } catch (e) {}
-
     var ehIOS = /iphone|ipad|ipod/.test(ua) ||
       (ua.indexOf('macintosh') > -1 && 'ontouchend' in document);
-
     var ehAndroid = ua.indexOf('android') > -1;
-
     var ehEmbutido =
       ua.indexOf('fban') > -1 || ua.indexOf('fbav') > -1 ||
       ua.indexOf('instagram') > -1 || ua.indexOf('line/') > -1 ||
       (ua.indexOf('wv)') > -1 && ehAndroid);
-
     var navegador = 'outro';
     if (ua.indexOf('edg') > -1) navegador = 'edge';
     else if (ua.indexOf('samsungbrowser') > -1) navegador = 'samsung';
     else if (ua.indexOf('firefox') > -1 || ua.indexOf('fxios') > -1) navegador = 'firefox';
     else if (ua.indexOf('chrome') > -1 || ua.indexOf('crios') > -1) navegador = 'chrome';
     else if (ua.indexOf('safari') > -1) navegador = 'safari';
-
     var jaInstalado = false;
     try {
       jaInstalado =
         (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
         window.navigator.standalone === true;
     } catch (e) {}
-
     return {
       ios: ehIOS, android: ehAndroid, desktop: !ehIOS && !ehAndroid,
       embutido: ehEmbutido, navegador: navegador, jaInstalado: jaInstalado
@@ -357,13 +315,11 @@ var Instalador = {
 
   iniciar: function () {
     var amb = Instalador.detectar();
-
     try {
       window.addEventListener('beforeinstallprompt', function (evento) {
         evento.preventDefault();
         Instalador._promptNativo = evento;
       });
-
       window.addEventListener('appinstalled', function () {
         var e = Instalador._lerEstado();
         e.instalado = 1;
@@ -371,7 +327,6 @@ var Instalador = {
         Instalador.fecharFaixa();
       });
     } catch (e) {}
-
     if (amb.jaInstalado) {
       var estado = Instalador._lerEstado();
       if (!estado.instalado) {
@@ -380,28 +335,22 @@ var Instalador = {
       }
       return;
     }
-
     setTimeout(function () { Instalador.talvezConvidar(); }, 9000);
   },
 
   talvezConvidar: function () {
     if (typeof APP_PRONTO !== 'undefined' && !APP_PRONTO) return;
-
     var estado = Instalador._lerEstado();
     if (estado.instalado) return;
-
     if (estado.adiadoAte && new Date().getTime() < estado.adiadoAte) return;
-
     var amb = Instalador.detectar();
     if (amb.jaInstalado) return;
     if (amb.embutido && estado.visto >= 1) return;
-
     Instalador.mostrarFaixa();
   },
 
   mostrarFaixa: function () {
     if ($('faixaInstalar')) return;
-
     var html =
       '<div id="faixaInstalar" class="faixa-instalar">' +
         '<div class="fi-ico"><span class="ms">install_mobile</span></div>' +
@@ -416,14 +365,11 @@ var Instalador = {
           '</button>' +
         '</div>' +
       '</div>';
-
     document.body.insertAdjacentHTML('beforeend', html);
-
     setTimeout(function () {
       var f = $('faixaInstalar');
       if (f) f.classList.add('visivel');
     }, 40);
-
     var estado = Instalador._lerEstado();
     estado.visto = estado.visto + 1;
     Instalador._gravarEstado(estado);
@@ -446,7 +392,6 @@ var Instalador = {
 
   abrirGuia: function () {
     Instalador.fecharFaixa();
-
     /* Fora do Apps Script o prompt nativo funciona de verdade */
     if (Instalador._promptNativo) {
       Instalador._promptNativo.prompt();
@@ -461,13 +406,11 @@ var Instalador = {
       });
       return;
     }
-
     Instalador.renderGuia(Instalador.detectar());
   },
 
   renderGuia: function (amb) {
     var html = '';
-
     if (amb.jaInstalado) {
       UI.modal('Instalar o CarWay',
         '<div class="aviso verde"><span class="ms">check_circle</span><div>' +
@@ -475,7 +418,6 @@ var Instalador = {
         'Você está usando o CarWay pelo atalho da tela inicial.</div></div>', null);
       return;
     }
-
     if (amb.embutido) {
       html =
         '<div class="aviso"><span class="ms">open_in_browser</span><div>' +
@@ -487,11 +429,9 @@ var Instalador = {
           Instalador._passo(2, 'open_in_browser', 'Escolha <b>Abrir no navegador</b>') +
           Instalador._passo(3, 'install_mobile', 'Já no navegador, volte aqui e toque em <b>Instalar</b>') +
         '</div>' + Instalador._blocoLink();
-
       UI.modal('Abra no navegador', html, null);
       return;
     }
-
     if (amb.ios) {
       html =
         '<div class="aviso info"><span class="ms">ios_share</span><div>' +
@@ -506,7 +446,6 @@ var Instalador = {
       var caminho = (amb.navegador === 'samsung')
         ? 'Toque no menu e escolha <b>Adicionar página a</b> › <b>Tela inicial</b>'
         : 'Toque nos <b>três pontinhos</b> no canto superior direito';
-
       html =
         '<div class="aviso info"><span class="ms">android</span><div>' +
         '<b>Android</b>Em poucos toques o CarWay ganha ícone próprio.</div></div>' +
@@ -525,12 +464,10 @@ var Instalador = {
           Instalador._passo(3, 'push_pin', 'Escolha <b>Instalar CarWay</b>') +
         '</div>';
     }
-
     html += Instalador._blocoLink() +
       '<div class="aviso verde" style="margin-top:12px">' +
       '<span class="ms">lock</span><div><b>Você continua conectado</b>' +
       'O atalho abre o CarWay já na sua conta.</div></div>';
-
     UI.modal('Instalar o CarWay', html, function () {
       var estado = Instalador._lerEstado();
       estado.instalado = 1;
@@ -573,7 +510,6 @@ var Instalador = {
   }
 };
 
-
 /* =====================================================================
    4 — AJUSTES DE VERSÃO
    ===================================================================== */
@@ -588,11 +524,9 @@ App.checarVersao = function () {
       console.log('Backend v' + App._versaoBackend + ' × front v' + VERSAO_FRONT);
     }
   }
-
   var faltando = ['filtroPainel', 'hubs', 'barraVeiculos',
                   'btnCancelarLoad', 'mapaViagem', 'orcadoReal']
     .filter(function (id) { return !temEl(id); });
-
   if (faltando.length) {
     UI.modal('Arquivos desatualizados',
       '<div class="aviso"><span class="ms">warning</span><div>' +
@@ -603,10 +537,59 @@ App.checarVersao = function () {
 
 /* =====================================================================
    CARWAY v14.5 - CARREGAMENTO RAPIDO E SALVAMENTO SEM TRAVAR A TELA
+
+   Problema observado: a primeira tela demorava para aparecer, e ao
+   salvar um abastecimento o app continuava girando o spinner mesmo
+   depois do registro ja estar na planilha.
+
+   Causa raiz: App.aposSalvar (e o App.iniciar original) sempre
+   esperava carregarApp() TERMINAR por completo antes de liberar a
+   tela. Essa funcao, no backend, recalcula consumo por veiculo,
+   alertas de manutencao e orcado x realizado de TODAS as viagens -
+   um trabalho pesado que nao tem nada a ver com "o registro foi
+   gravado com sucesso".
+
+   Solucao adotada, seguindo o mesmo padrao ja usado no projeto
+   (sobrescrever com App._algoOriginal = App.algo; App.algo = ...):
+
+     1) App._aplicarSalvoNoDB  - novo. Aplica o registro devolvido
+        pelo servidor direto no DB local, sem esperar recarregar tudo.
+        Chamado automaticamente por _apiTentativa (carway-config.js)
+        sempre que a funcao chamada for 'salvar'.
+
+     2) App.aposSalvar - reescrito. Fecha o overlay de carregamento
+        IMEDIATAMENTE (o registro ja foi salvo quando chegamos aqui).
+        O recalculo de consumo/alertas/orcamento continua rodando,
+        mas em segundo plano, sem bloquear a tela com o spinner.
+
+     3) App.carregar - ganhou um segundo parametro "silencioso".
+        Quando true, atualiza os dados sem mostrar o overlay cheio
+        de "Atualizando...". Usado pelas atualizacoes em segundo
+        plano (pos-salvar e abertura do app).
+
+     4) App.iniciar - reescrito. Mostra o Menu e fecha a splash
+        IMEDIATAMENTE, sem esperar o carregarApp() completo. Os
+        dados pesados (consumo, alertas, series mensais) chegam
+        alguns instantes depois, em segundo plano, e a tela se
+        atualiza sozinha quando chegam.
+
+   Compatibilidade: nenhuma outra funcao do app precisa mudar. Quem
+   chama App.aposSalvar(msg, extra) ou App.carregar(primeira)
+   continua funcionando exatamente igual - o segundo parametro novo
+   de App.carregar e opcional.
    ===================================================================== */
 
-/* Aplica localmente o registro que acabou de ser salvo, sem esperar
-   o carregarApp() completo recalcular consumo/alertas/orcamento. */
+/**
+ * Aplica localmente o registro que acabou de ser salvo, sem esperar
+ * o carregarApp() completo. E chamada automaticamente pela camada
+ * de rede (carway-config.js) logo apos qualquer api('salvar', ...)
+ * bem-sucedido.
+ *
+ * So atualiza os campos que vieram na resposta do servidor - campos
+ * calculados que so existem no payload completo (consumo do
+ * veiculo, qtdViagens, orcado, etc.) ficam intactos ate a proxima
+ * atualizacao completa chegar.
+ */
 App._aplicarSalvoNoDB = function (tabela, registro) {
   var mapa = {
     Veiculos: 'veiculos',
@@ -618,11 +601,14 @@ App._aplicarSalvoNoDB = function (tabela, registro) {
   };
   var chave = mapa[tabela];
   if (!chave || !registro || !registro.id) return;
+
   DB[chave] = DB[chave] || [];
+
   var indice = -1;
   for (var i = 0; i < DB[chave].length; i++) {
     if (String(DB[chave][i].id) === String(registro.id)) { indice = i; break; }
   }
+
   if (indice >= 0) {
     for (var campo in registro) {
       if (registro.hasOwnProperty(campo)) DB[chave][indice][campo] = registro[campo];
@@ -630,19 +616,28 @@ App._aplicarSalvoNoDB = function (tabela, registro) {
   } else {
     DB[chave].push(registro);
   }
+
   App.render();
 };
 
-/* A gravacao ja terminou com sucesso quando chegamos aqui - liberamos
-   a tela na hora; o recalculo pesado roda em segundo plano. */
+/**
+ * A gravacao ja terminou com sucesso quando chegamos aqui (o
+ * registro ja esta na planilha e ja foi aplicado ao DB local por
+ * App._aplicarSalvoNoDB). Por isso liberamos a tela IMEDIATAMENTE,
+ * sem esperar o recalculo pesado de consumo, alertas e orcamento -
+ * que agora roda em segundo plano, sem travar a interface com o
+ * spinner cheio de novo.
+ */
 App.aposSalvar = function (msg, extra) {
   UI.load(false);
   if (msg) UI.toast(msg, 'ok');
+
   if (!navigator.onLine) {
     App.render();
     if (typeof extra === 'function') extra();
     return Promise.resolve(true);
   }
+
   return App.carregar(false, true).then(function () {
     if (VIAGEM_ABERTA && U.viagem(VIAGEM_ABERTA)) {
       App.abrirViagem(VIAGEM_ABERTA, true);
@@ -650,25 +645,42 @@ App.aposSalvar = function (msg, extra) {
     if (typeof extra === 'function') extra();
     return true;
   }).catch(function (e) {
-    if (window.console) console.warn('CarWay: falha ao atualizar em segundo plano - ' + e.message);
+    /* O registro ja foi salvo - uma falha aqui e so na atualizacao
+       dos totais em segundo plano, nao merece assustar o usuario
+       com um erro grande. */
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('CarWay: falha ao atualizar em segundo plano - ' + e.message);
+    }
     if (typeof extra === 'function') extra();
     return true;
   });
 };
 
-/* Aceita um segundo parametro "silencioso" para atualizar sem
-   mostrar o overlay de carregamento cheio de novo. */
+/**
+ * Recarrega os dados do servidor.
+ *
+ * @param {boolean} primeira    true na carga inicial do app.
+ * @param {boolean} silencioso  true para atualizar sem mostrar o
+ *                              overlay "Atualizando…" (usado pelo
+ *                              pos-salvar e pela carga inicial, que
+ *                              ja tem seu proprio feedback visual).
+ */
 App.carregar = function (primeira, silencioso) {
   if (!primeira && !silencioso) UI.load(true, 'Atualizando…');
   return api('carregarApp').then(function (d) {
-    if (!d || typeof d !== 'object') throw new Error('O servidor devolveu dados vazios.');
+    if (!d || typeof d !== 'object') {
+      throw new Error('O servidor devolveu dados vazios.');
+    }
     var base = dbVazio();
     for (var k in base) if (d[k] === undefined || d[k] === null) d[k] = base[k];
     DB = d;
     APP_PRONTO = true;
     if (primeira && DB.hoje) {
       var p = DB.hoje.split('-');
-      if (p.length === 3) { FILTRO.ano = parseInt(p[0], 10); FILTRO.mes = parseInt(p[1], 10); }
+      if (p.length === 3) {
+        FILTRO.ano = parseInt(p[0], 10);
+        FILTRO.mes = parseInt(p[1], 10);
+      }
     }
     App.montarSeletor();
     App.render();
@@ -676,7 +688,9 @@ App.carregar = function (primeira, silencioso) {
     App.fecharSplash();
     App.checarVersao();
     App.atualizarSininho();
-    if (primeira && !DB.veiculos.length) setTimeout(function () { App.formVeiculo(true); }, 600);
+    if (primeira && !DB.veiculos.length) {
+      setTimeout(function () { App.formVeiculo(true); }, 600);
+    }
     return d;
   }).catch(function (e) {
     UI.load(false);
@@ -691,8 +705,13 @@ App.carregar = function (primeira, silencioso) {
       App.telaSemAcesso('SEM_ORGANIZACAO', msg.substring(16));
     } else if (msg.indexOf('ORGANIZACAO_INATIVA:') === 0) {
       App.telaSemAcesso('ORGANIZACAO_INATIVA', msg.substring(20));
-    } else if (msg.indexOf('PLANILHA_NAO_CONFIGURADA') === 0 || msg.indexOf('PLANILHA_SEM_ACESSO') === 0) {
-      App.erroFatal('O aplicativo ainda nao foi configurado pelo proprietario. Peca para ele republicar a implantacao com "Executar como: Eu (proprietario)" e "Quem tem acesso: Qualquer pessoa".');
+    } else if (msg.indexOf('PLANILHA_NAO_CONFIGURADA') === 0 ||
+               msg.indexOf('PLANILHA_SEM_ACESSO') === 0) {
+      App.erroFatal(
+        'O aplicativo ainda nao foi configurado pelo proprietario. ' +
+        'Peca para ele republicar a implantacao com "Executar como: Eu (proprietario)" ' +
+        'e "Quem tem acesso: Qualquer pessoa".'
+      );
     } else {
       App.erroFatal(msg || 'Falha ao carregar os dados');
     }
@@ -700,15 +719,22 @@ App.carregar = function (primeira, silencioso) {
   });
 };
 
-/* Mostra o Menu na hora, sem esperar o carregarApp() completo
-   (que recalcula consumo, alertas e orcamento de tudo). */
+/**
+ * Mostra o Menu e fecha a splash IMEDIATAMENTE, sem esperar o
+ * carregarApp() completo terminar. Os dados pesados (consumo,
+ * alertas, orcamento de viagens, serie mensal) chegam alguns
+ * instantes depois, em segundo plano, e a tela se atualiza sozinha
+ * assim que App.carregar() resolver.
+ */
 App.iniciar = function () {
   var d = new Date();
   FILTRO.ano = d.getFullYear();
   FILTRO.mes = d.getMonth() + 1;
+
   App.fecharSplash();
   App.irParaMenu();
   App.renderMenu();
+
   return App.carregar(true, true).then(function () {
     return true;
   }).catch(function () {
@@ -719,9 +745,7 @@ App.iniciar = function () {
 /* =====================================================================
    BOOT
    ===================================================================== */
-
 function bootApp() {
-
   Offline.iniciar();
   CarWaySW.registrar();
   Instalador.iniciar();
@@ -745,7 +769,6 @@ function bootApp() {
   App.aplicarTemaSalvo();
 
   CARWAY_SESSAO.token = lerSessaoLocal();
-
   var sessaoUrl = lerParametroUrl('sessao');
   var conviteUrl = lerParametroUrl('convite');
   var atalho = lerParametroUrl('atalho');
