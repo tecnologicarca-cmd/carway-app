@@ -4781,6 +4781,218 @@ var Viagem = {
 };
 
 /* =====================================================================
+   CARWAY v14.6 - BUSCA UNIFICADA: POSTOS E RECARGAS
+   Substitui os dois botoes separados "Buscar postos" e "Buscar
+   recargas" por um unico fluxo que busca as duas coisas ao mesmo
+   tempo e separa o resultado em blocos, com chips de filtro.
+
+   Por que isso e necessario: o backend (buscarPostos) as vezes
+   devolve estacoes de recarga misturadas na lista de postos de
+   combustivel (foi o que apareceu no print - "Ponto de recarga
+   eletrica Weg" e "Eletroposto Ministerio da Saude" numerados
+   junto com os postos de gasolina). Em vez de tentar consertar
+   isso so no backend, o front agora:
+
+     1) busca as duas fontes (buscarPostos + buscarRecargas) em
+        paralelo, tolerando falha de uma sem derrubar a outra;
+     2) reclassifica qualquer item que vier como "posto" mas seja
+        na verdade uma recarga (pelo nome ou pelo tipoPrincipal),
+        evitando duplicidade contra o que ja veio de buscarRecargas;
+     3) mostra tudo junto, com chips para filtrar so postos, so
+        recargas, ou os dois.
+   ===================================================================== */
+(function () {
+  function n(v) { return Number(v || 0) || 0; }
+
+  /* Reclassifica pelo conteudo, nao confia cegamente na origem */
+  function ehRecargaPeloConteudo(item) {
+    if (item.tipoPrincipal === 'electric_vehicle_charging_station') return true;
+    var nome = String(item.nome || '').toLowerCase();
+    return nome.indexOf('recarga') > -1 ||
+      nome.indexOf('elétric') > -1 ||
+      nome.indexOf('eletric') > -1 ||
+      nome.indexOf('eletroposto') > -1 ||
+      nome.indexOf('charging') > -1 ||
+      nome.indexOf('ev station') > -1;
+  }
+
+  /* Evita duplicar o mesmo local vindo das duas buscas */
+  function mesmoLocal(a, b) {
+    if (a.placeId && b.placeId && a.placeId === b.placeId) return true;
+    var dLat = Math.abs(n(a.lat) - n(b.lat));
+    var dLon = Math.abs(n(a.lon) - n(b.lon));
+    return dLat < 0.002 && dLon < 0.002; /* ~200 m */
+  }
+
+  Viagem.abrirBuscaApoio = function () {
+    Geo.limpar();
+    var html = '<div class="aviso info"><span class="ms">ev_station</span><div><b>Postos e recargas</b>' +
+      'Busco ao mesmo tempo postos de combustível e estações de recarga elétrica por perto.</div></div>' +
+      '<div class="form">' +
+      Geo.campo('apEnd', 'Onde procurar', 'Cidade, endereço ou CEP', '',
+        '<div class="chips" style="margin-top:7px"><div class="chip" onclick="Viagem.usarGpsApoio()">' +
+        '<span class="ms">my_location</span>Usar minha localização</div></div>') +
+      campo('Raio da busca', '<select id="apRaio">' +
+        '<option value="5000">5 km — bem perto</option>' +
+        '<option value="10000" selected>10 km — recomendado</option>' +
+        '<option value="20000">20 km — região</option>' +
+        '<option value="40000">40 km — estrada</option></select>') + '</div>';
+    UI.modal('Postos e recargas', html, function () { Viagem.executarBuscaApoio(); }, 'Buscar');
+  };
+
+  Viagem.usarGpsApoio = function () {
+    if (!navigator.geolocation) return UI.toast('GPS indisponível', 'erro');
+    Geo.estado('apEnd', 'carregando');
+    navigator.geolocation.getCurrentPosition(function (p) {
+      Viagem.meuPonto = { lat: p.coords.latitude, lon: p.coords.longitude };
+      var el = $('apEnd'); if (el) el.value = 'Minha localização';
+      Geo.ultimo['apEnd'] = 'Minha localização';
+      var box = $('sugapEnd'); if (box) { box.innerHTML = ''; box.classList.remove('aberto'); }
+      Geo.estado('apEnd', 'ok');
+      UI.toast('Localização obtida', 'ok');
+    }, function () { Geo.estado('apEnd', ''); UI.toast('Não foi possível obter o GPS', 'erro'); },
+      { enableHighAccuracy: true, timeout: 10000 });
+  };
+
+  Viagem.executarBuscaApoio = function () {
+    var end = UI.v('apEnd');
+    var raio = UI.n('apRaio') || 10000;
+    if (!end) return UI.toast('Informe onde procurar', 'erro');
+    var usarGps = (end === 'Minha localização' && Viagem.meuPonto);
+    var op = usarGps
+      ? { lat: Viagem.meuPonto.lat, lon: Viagem.meuPonto.lon, raio: raio }
+      : { endereco: end, raio: raio };
+
+    UI.fecharModal();
+    Viagem.cancelado = false;
+    UI.load(true, 'Procurando postos e recargas…', function () { Viagem.cancelado = true; });
+
+    /* Cada busca falha de forma isolada - se buscarRecargas cair,
+       ainda mostramos os postos, e vice-versa. */
+    var buscaPostos = comPrazo(api('buscarPostos', op), 45000, 'Servidores de mapa ocupados.')
+      .catch(function (e) { return { erro: e, postos: [] }; });
+    var buscaRecargas = comPrazo(api('buscarRecargas', op), 45000, 'Servidores de mapa ocupados.')
+      .catch(function (e) { return { erro: e, recargas: [] }; });
+
+    Promise.all([buscaPostos, buscaRecargas]).then(function (res) {
+      if (Viagem.cancelado) return;
+      UI.load(false);
+
+      var rPostos = res[0] || {};
+      var rRecargas = res[1] || {};
+
+      var centro = rPostos.centro || rRecargas.centro || { nome: end };
+      var raioUsado = rPostos.raioUsado || rRecargas.raioUsado || Math.round(raio / 1000);
+
+      var postos = (rPostos.postos || []).slice();
+      var recargas = (rRecargas.recargas || []).slice();
+
+      /* Reclassifica qualquer item que veio como "posto" mas e na
+         verdade uma estacao de recarga */
+      var postosLimpos = [];
+      postos.forEach(function (p) {
+        if (ehRecargaPeloConteudo(p)) {
+          var jaTem = recargas.some(function (r) { return mesmoLocal(r, p); });
+          if (!jaTem) recargas.push(p);
+        } else {
+          postosLimpos.push(p);
+        }
+      });
+      postos = postosLimpos;
+
+      if (rPostos.erro && rRecargas.erro) {
+        return UI.modal('Não consegui buscar',
+          '<div class="aviso"><span class="ms">error</span><div><b>Motivo</b>' +
+          U.esc(rPostos.erro.message || '') + '</div></div>' +
+          '<div class="acao-topo" style="margin-top:12px">' +
+          '<button class="btn primario bloco-full" onclick="UI.fecharModal();Viagem.abrirBuscaApoio()">' +
+          '<span class="ms">refresh</span> Tentar de novo</button></div>', null);
+      }
+
+      Viagem._apoioUltimaBusca = { centro: centro, raioUsado: raioUsado, postos: postos, recargas: recargas };
+      Viagem._apoioFiltro = 'todos';
+      Viagem.mostrarApoioBusca();
+    });
+  };
+
+  /**
+   * Renderiza o resultado com chips de filtro: Todos / Postos / Recargas.
+   */
+  Viagem.mostrarApoioBusca = function () {
+    var d = Viagem._apoioUltimaBusca;
+    if (!d) return;
+
+    var postos = d.postos || [];
+    var recargas = d.recargas || [];
+    var total = postos.length + recargas.length;
+
+    if (!total) {
+      return UI.modal('Postos e recargas',
+        '<div class="hub-periodo"><span class="ms">location_on</span>' + U.esc(d.centro.nome || '') + '</div>' +
+        UI.vazio('search_off', 'Nada mapeado num raio de ' + d.raioUsado + ' km.'), null);
+    }
+
+    var filtro = Viagem._apoioFiltro || 'todos';
+    var chips =
+      '<div class="chips" style="margin:10px 0 4px">' +
+      '<div class="chip' + (filtro === 'todos' ? ' sel' : '') + '" onclick="Viagem.filtrarApoioBusca(\'todos\')">' +
+      'Todos (' + total + ')</div>' +
+      '<div class="chip' + (filtro === 'posto' ? ' sel' : '') + '" onclick="Viagem.filtrarApoioBusca(\'posto\')">' +
+      '⛽ Postos (' + postos.length + ')</div>' +
+      '<div class="chip' + (filtro === 'recarga' ? ' sel' : '') + '" onclick="Viagem.filtrarApoioBusca(\'recarga\')">' +
+      '🔋 Recargas (' + recargas.length + ')</div>' +
+      '</div>';
+
+    var html = '<div class="hub-periodo"><span class="ms">location_on</span>' +
+      U.esc(d.centro.nome || '') + ' · raio de ' + d.raioUsado + ' km</div>' + chips;
+
+    function itemHTML(p, tipo) {
+      var recarga = (tipo === 'recarga');
+      var tags = [];
+      if (p.h24 || p.abertoAgora) tags.push('<span class="pt-tag h24">Aberto agora</span>');
+      if (n(p.rating) > 0) tags.push('<span class="pt-tag">⭐ ' + U.num(p.rating, 1) + '</span>');
+      if (recarga && n(p.potenciaMaximaKw) > 0) {
+        tags.push('<span class="pt-tag">' + U.num(p.potenciaMaximaKw, 0) + ' kW</span>');
+      }
+      if (p.fonte === 'OCM') tags.push('<span class="pt-tag">Open Charge Map</span>');
+      if (p.fonte === 'GOOGLE+OCM') tags.push('<span class="pt-tag">Google + OCM</span>');
+
+      var url = p.googleMapsUri || (URL_MAPS_DIR + p.lat + ',' + p.lon);
+
+      return '<div class="posto-item">' +
+        '<div class="pi-ico' + (recarga ? ' recarga' : '') + '">' +
+        '<span class="ms">' + (recarga ? 'ev_station' : 'local_gas_station') + '</span></div>' +
+        '<div class="pi-txt"><b>' + U.esc(p.nome) + '</b>' +
+        '<small>' + (p.endereco ? U.esc(p.endereco) : 'endereço não informado') + '</small>' +
+        (tags.length ? '<div class="pi-tags">' + tags.join('') + '</div>' : '') + '</div>' +
+        '<div class="pi-dist"><b>' + U.num(p.desvioKm, 1) + '</b><small>km</small>' +
+        '<a class+ '' +
+        '<span class="ms">navigation</span></a></div></div>';
+    }
+
+    var itens = [];
+    if (filtro === 'todos' || filtro === 'posto') {
+      postos.forEach(function (p) { itens.push({ item: p, tipo: 'posto' }); });
+    }
+    if (filtro === 'todos' || filtro === 'recarga') {
+      recargas.forEach(function (p) { itens.push({ item: p, tipo: 'recarga' }); });
+    }
+    itens.sort(function (a, b) { return n(a.item.desvioKm) - n(b.item.desvioKm); });
+
+    html += '<div class="lista-postos">' +
+      itens.map(function (x) { return itemHTML(x.item, x.tipo); }).join('') +
+      '</div>';
+
+    UI.modal('Postos e recargas', html, null);
+  };
+
+  Viagem.filtrarApoioBusca = function (tipo) {
+    Viagem._apoioFiltro = tipo;
+    Viagem.mostrarApoioBusca();
+  };
+})();
+
+/* =====================================================================
    CARWAY v9 - EQUIPE (frontend)
 
    Cole este bloco no Script.html, imediatamente ANTES da linha:
@@ -5636,18 +5848,12 @@ App.abrirViagensMenu = function () {
         '<div><b>Registrar manual</b><small>Para uma viagem que já foi feita</small></div>' +
         '<span class="ms seta">chevron_right</span>' +
       '</button>' +
-      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaPostos()">' +
-        '<span class="ms">travel_explore</span>' +
-        '<div><b>Buscar postos</b><small>Num raio à sua escolha</small></div>' +
-        '<span class="ms seta">chevron_right</span>' +
-      '</button>' +
-      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaRecargas()">' +
+      '<button class="menu-acao" onclick="UI.fecharModal();Viagem.abrirBuscaApoio()">' +
         '<span class="ms">ev_station</span>' +
-        '<div><b>Buscar recargas</b><small>Estações elétricas próximas</small></div>' +
+        '<div><b>Postos e recargas</b><small>Combustível e recarga elétrica por perto</small></div>' +
         '<span class="ms seta">chevron_right</span>' +
       '</button>' +
     '</div>';
-
   UI.modal('Viagens', html, null);
 };
 
