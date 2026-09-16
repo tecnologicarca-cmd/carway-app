@@ -1,9 +1,7 @@
 /* =====================================================================
    1 — TABELA DE UNIDADES
    ===================================================================== */
-
 var COMBUSTIVEIS = {
-
   'Gasolina': {
     unidade: 'L',  unidadeLonga: 'litros',
     tanque: 'Tanque (L)',
@@ -14,7 +12,6 @@ var COMBUSTIVEIS = {
     acao: 'Abastecimento',
     precoTipico: 6.20
   },
-
   'Etanol': {
     unidade: 'L',  unidadeLonga: 'litros',
     tanque: 'Tanque (L)',
@@ -25,7 +22,6 @@ var COMBUSTIVEIS = {
     acao: 'Abastecimento',
     precoTipico: 4.30
   },
-
   'Flex': {
     unidade: 'L',  unidadeLonga: 'litros',
     tanque: 'Tanque (L)',
@@ -36,7 +32,6 @@ var COMBUSTIVEIS = {
     acao: 'Abastecimento',
     precoTipico: 6.20
   },
-
   'Diesel S10': {
     unidade: 'L',  unidadeLonga: 'litros',
     tanque: 'Tanque (L)',
@@ -47,7 +42,6 @@ var COMBUSTIVEIS = {
     acao: 'Abastecimento',
     precoTipico: 6.10
   },
-
   'Diesel S500': {
     unidade: 'L',  unidadeLonga: 'litros',
     tanque: 'Tanque (L)',
@@ -58,7 +52,6 @@ var COMBUSTIVEIS = {
     acao: 'Abastecimento',
     precoTipico: 5.90
   },
-
   /* ---- GNV: vendido por metro cúbico ---- */
   'GNV': {
     unidade: 'm³', unidadeLonga: 'metros cúbicos',
@@ -72,7 +65,6 @@ var COMBUSTIVEIS = {
     nota: 'O GNV é vendido por metro cúbico (m³). O cilindro do seu ' +
           'veículo costuma ter entre 10 e 20 m³ de capacidade útil.'
   },
-
   /* ---- Elétrico: carregado por quilowatt-hora ---- */
   'Elétrico': {
     unidade: 'kWh', unidadeLonga: 'quilowatt-hora',
@@ -87,7 +79,6 @@ var COMBUSTIVEIS = {
           'costuma ficar perto de R$ 1,00/kWh; em eletroposto rápido ' +
           'pode passar de R$ 2,50/kWh.'
   },
-
   'Híbrido': {
     unidade: 'L',  unidadeLonga: 'litros',
     tanque: 'Tanque (L)',
@@ -107,13 +98,10 @@ var LISTA_COMBUSTIVEIS = [
   'GNV', 'Elétrico', 'Híbrido'
 ];
 
-
 /* =====================================================================
    2 — FUNÇÕES DE APOIO
    ===================================================================== */
-
 var Comb = {
-
   /**
    * Devolve a configuração do combustível. Se não reconhecer,
    * cai em litro (comportamento antigo).
@@ -190,13 +178,10 @@ var Comb = {
   }
 };
 
-
 /* =====================================================================
    3 — CADASTRO DO VEÍCULO
    ===================================================================== */
-
 App._formVeiculoOriginal = App.formVeiculo;
-
 App.formVeiculo = function (primeiro, id) {
   App._formVeiculoOriginal(primeiro, id);
 
@@ -209,7 +194,6 @@ App.formVeiculo = function (primeiro, id) {
     var atual = sel.value;
     sel.innerHTML = Comb.opcoes(atual);
     sel.setAttribute('onchange', 'App.aoTrocarCombustivel()');
-
     App.aoTrocarCombustivel();
   }, 80);
 };
@@ -253,7 +237,6 @@ App.aoTrocarCombustivel = function () {
       : 'O consumo será calculado em <b>' + c.consumo + '</b>.';
   }
 };
-
 
 /* =====================================================================
    4 — LANÇAMENTO DE ABASTECIMENTO / RECARGA
@@ -434,7 +417,6 @@ App.formAbastecimento = function (veicId, id, viagemId) {
   setTimeout(App.aoTrocarCombAbast, 70);
 };
 
-
 /**
  * Ajusta rotulos, unidades e visibilidade conforme o energetico
  * escolhido e o tipo de veiculo.
@@ -503,7 +485,6 @@ App.aoTrocarCombAbast = function () {
   App.previaAbast();
 };
 
-
 /**
  * Mostra na hora a eficiencia do trecho informado, para o usuario
  * perceber um erro de digitacao antes de salvar.
@@ -532,7 +513,6 @@ App.previaDistEnergia = function () {
     U.num(dist, 1) + ' km ÷ ' + Comb.qtd(qtd, UI.v('fComb')) +
     ' = <b>' + U.num(ef, 2) + ' ' + c.consumo + '</b> neste trecho.';
 };
-
 
 /**
  * Mostra o resumo do que será lançado, com a unidade certa.
@@ -581,11 +561,9 @@ App.calcAbastInverso = function () {
   App.previaAbast();
 };
 
-
 /* =====================================================================
    5 — LISTAGENS COM A UNIDADE CERTA
    ===================================================================== */
-
 App.renderAbastecimentos = function () {
   if (!temEl('listaAbastecimentos')) return;
 
@@ -599,7 +577,6 @@ App.renderAbastecimentos = function () {
   todos.forEach(function (a) {
     var val = Number(a.valorTotal) || 0;
     if (val <= 0) val = (Number(a.litros) || 0) * (Number(a.precoLitro) || 0);
-
     gasto += val;
     if (a.viagemId) gastoViagem += val; else gastoRotina += val;
 
@@ -612,9 +589,9 @@ App.renderAbastecimentos = function () {
     ? DB.veiculos
     : DB.veiculos.filter(function (v) { return v.id === VEICULO_SEL; });
 
-  var med = 0, n = 0;
+  var med = 0, n2 = 0;
   listaVeic.forEach(function (v) {
-    if (v.consumo && v.consumo.mediaKmL > 0) { med += v.consumo.mediaKmL; n++; }
+    if (v.consumo && v.consumo.mediaKmL > 0) { med += v.consumo.mediaKmL; n2++; }
   });
 
   /* Texto do total, quebrado por unidade quando houver mistura */
@@ -628,21 +605,17 @@ App.renderAbastecimentos = function () {
   setHTML('resumoConsumo',
     '<div class="kpi"><span class="ms">payments</span><b>' + U.moeda(gasto) +
     '</b><span class="lbl">Total · ' + (textoQtd || '—') + '</span></div>' +
-
     '<div class="kpi x"><span class="ms">luggage</span><b>' + U.moeda(gastoViagem) +
     '</b><span class="lbl">Em viagens</span></div>' +
-
     '<div class="kpi v"><span class="ms">home</span><b>' + U.moeda(gastoRotina) +
     '</b><span class="lbl">Dia a dia</span></div>' +
-
     '<div class="kpi a"><span class="ms">speed</span><b>' +
-    (n ? (med / n).toFixed(2) : '—') +
+    (n2 ? (med / n2).toFixed(2) : '—') +
     ' <small>' + rotuloConsumo + '</small></b><span class="lbl">Média</span></div>');
 
   /* Explicação do consumo do veículo selecionado */
   var v = U.veicAtual();
   var ex = $('explicaConsumo');
-
   if (ex && v && v.consumo && VEICULO_SEL !== 'todos') {
     var c = v.consumo;
     var ci = Comb.info(v.combustivel);
@@ -687,25 +660,19 @@ App.renderAbastecimentos = function () {
       return '<div class="item"><div class="av" style="background:' + cor +
         '22;color:' + cor + '">' +
         '<span class="ms">' + ci.icone + '</span></div>' +
-
         '<div class="txt"><b>' + Comb.qtd(a.litros, a.combustivel) +
         ' · ' + U.moeda(a.valorTotal) + '</b>' +
-
         (U.multi() && VEICULO_SEL === 'todos' ? U.selo(a.veiculoId) : '') +
-
         '<small>' + U.data(a.data) + ' · ' + U.num(a.km) + ' km · ' +
         U.esc(a.combustivel || '—') + '<br>' +
         U.esc(a.posto || (eletrico ? 'Local não informado' : 'Posto não informado')) +
         ' · ' + Comb.preco(a.precoLitro, a.combustivel) + '</small>' +
-
         '<span class="tag ' + (cheio ? 'ok' : '') + '">' +
         (cheio
           ? (eletrico ? 'Carga completa' : 'Tanque cheio')
           : 'Parcial') + '</span>' +
-
         (vg ? '<span class="tag roxo">' + U.esc(vg.titulo || vg.destino) +
           '</span>' : '') +
-
         '<div class="acoes-item">' +
         '<button onclick="App.formAbastecimento(null,\'' + a.id + '\')">' +
         '<span class="ms">edit</span> Editar</button>' +
@@ -720,27 +687,22 @@ App.renderAbastecimentos = function () {
   render(rotina, 'listaAbastRotina', 'Nenhum abastecimento do dia a dia');
 };
 
-
 /* =====================================================================
    6 — CARTÃO DO VEÍCULO
    ===================================================================== */
-
 App._renderVeiculosOriginal = App.renderVeiculos;
-
 App.renderVeiculos = function () {
   App._renderVeiculosOriginal();
 
   /* Corrige os rótulos "KM/L" e "KM/TANQUE" nos cartões,
      de acordo com o combustível de cada veículo. */
   var cartoes = document.querySelectorAll('#listaVeiculos .card-veic');
-
   [].forEach.call(cartoes, function (cartao, i) {
     var v = DB.veiculos[i];
     if (!v) return;
 
     var ci = Comb.info(v.combustivel);
     var rotulos = cartao.querySelectorAll('.cv-nums div small');
-
     if (rotulos[1]) rotulos[1].textContent = ci.consumo.toUpperCase();
     if (rotulos[2]) {
       rotulos[2].textContent = (v.combustivel === 'Elétrico')
@@ -750,11 +712,9 @@ App.renderVeiculos = function () {
   });
 };
 
-
 /* =====================================================================
    7 — HUB DE CONSUMO
    ===================================================================== */
-
 App.hubConsumo = function () {
   var lista = VEICULO_SEL === 'todos'
     ? (DB.veiculos || [])
@@ -782,15 +742,12 @@ App.hubConsumo = function () {
     var p = App.calcPeriodo(v.id);
     var ci = Comb.info(v.combustivel);
     var eletrico = (v.combustivel === 'Elétrico');
-
     var alertasV = (DB.alertas || []).filter(function (a) {
       return a.veiculoId === v.id && a.status !== 'ok';
     });
-
     var semDados = (c.metodo === 'sem-dados' || c.metodo === 'aguardando');
 
     return '<div class="card-consumo" style="--c:' + U.hex(v.cor) + '">' +
-
       '<div class="cc-topo"><div class="cc-ico">' +
       '<span class="ms">' + U.ico(v.tipo) + '</span></div>' +
       '<div class="cc-id"><b>' + U.esc(v.nome) + '</b>' +
@@ -798,13 +755,11 @@ App.hubConsumo = function () {
       U.esc(v.combustivel || '—') + '</small></div>' +
       '<div class="cc-kml"><b>' + (semDados ? '—' : c.mediaKmL) + '</b>' +
       '<small>' + ci.consumo + '</small></div></div>' +
-
       (semDados
         ? '<div class="cc-aguarda"><span class="ms">info</span>' +
           (c.abastecimentos
             ? 'Registre o 2º ' + ci.acao.toLowerCase() + ' para calcular'
             : 'Nenhum ' + ci.acao.toLowerCase() + ' registrado') + '</div>'
-
         : '<div class="cc-linha"><span>Melhor / pior</span><b>' +
           c.melhorKmL + ' / ' + c.piorKmL + ' ' + ci.consumo + '</b></div>' +
           '<div class="cc-linha"><span>Custo por km</span><b>' +
@@ -815,14 +770,12 @@ App.hubConsumo = function () {
           (eletrico ? 'Bateria' : (v.combustivel === 'GNV' ? 'Cilindro' : 'Tanque')) +
           '</span><b>' + U.num(v.tanque, ci.casasQtd === 3 ? 1 : 0) +
           ' ' + ci.unidade + '</b></div>') +
-
       (c.trechosDescartados
         ? '<div class="cc-aguarda" style="margin-top:9px">' +
           '<span class="ms">rule</span>' + c.trechosDescartados +
           ' trecho(s) ignorado(s) por consumo fora do normal (' +
           c.limiteMin + '–' + c.limiteMax + ' ' + ci.consumo + ').</div>'
         : '') +
-
       '<div class="cc-gastos"><h5>Gastos · ' + U.rotuloPeriodo() + '</h5>' +
       '<div class="cc-grid">' +
         '<div><span class="ms">' + ci.icone + '</span><b>' +
@@ -835,12 +788,10 @@ App.hubConsumo = function () {
         '<div><span class="ms">payments</span><b>' +
         U.moedaCurta(p.total) + '</b><small>total</small></div>' +
       '</div></div>' +
-
       '<div class="cc-hist"><span>' + v.qtdAbastecimentos + ' ' +
       (eletrico ? 'recargas' : 'abastec.') + '</span>' +
       '<span>' + v.qtdManutencoes + ' manut.</span>' +
       '<span>' + v.qtdViagens + ' viagens</span></div>' +
-
       (alertasV.length
         ? '<div class="cc-alertas"><h5><span class="ms">warning</span>' +
           'Manutenções próximas</h5>' +
@@ -852,7 +803,6 @@ App.hubConsumo = function () {
           }).join('') + '</div>'
         : '<div class="cc-alertas ok"><span class="ms">verified</span>' +
           'Revisões em dia</div>') +
-
       '<div class="cc-acoes">' +
       '<button onclick="UI.fecharModal();App.formAbastecimento(\'' + v.id + '\')">' +
       '<span class="ms">' + ci.icone + '</span>' + ci.abastecer + '</button>' +
@@ -866,16 +816,12 @@ App.hubConsumo = function () {
   UI.modal('Consumo dos veículos', html, null);
 };
 
-
 /* =====================================================================
    8 — PLANEJADOR DE VIAGEM
    ===================================================================== */
-
 Viagem._abrirPlanejadorOriginal = Viagem.abrirPlanejador;
-
 Viagem.abrirPlanejador = function () {
   Viagem._abrirPlanejadorOriginal();
-
   setTimeout(function () {
     var v = U.veicAtual();
     if (!v) return;
@@ -899,7 +845,6 @@ Viagem.ajustarRotulosCombustivel = function (nomeCombustivel) {
   trocarLabel('pKmL', 'Consumo (' + c.consumo + ')');
   trocarLabel('pTanque', c.tanque);
   trocarLabel('pPreco', 'Preço por ' + c.unidade);
-
   trocarLabel('rtKmL', 'Consumo (' + c.consumo + ')');
   trocarLabel('rtTanque', c.tanque);
 
@@ -953,18 +898,14 @@ Viagem.previewAutonomia = function () {
     '<div><b>' + U.num(autCheia) + '</b><small>km com ' +
     (eletrico ? 'carga cheia' : (veic.combustivel === 'GNV'
       ? 'cilindro cheio' : 'tanque cheio')) + '</small></div>' +
-
     '<div><b>' + U.num(autIni) + '</b><small>km agora (' + nivel + '%)</small></div>' +
-
     '<div><b>' + U.num(autUtil) + '</b><small>km entre ' +
     (eletrico ? 'recargas' : 'paradas') + '</small></div></div>' +
-
     '<div class="am-nota"><span class="ms">calculate</span>' +
     U.num(capacidade, c.casasQtd === 3 ? 1 : 0) + ' ' + c.unidade +
     ' × ' + kmPorUn + ' ' + c.consumo +
     ', guardando ' + reserva + '% (' +
     U.num(reservaQtd, 1) + ' ' + c.unidade + ') de reserva.</div>' +
-
     (eletrico
       ? '<div class="am-nota" style="border-top:0;padding-top:4px">' +
         '<span class="ms">bolt</span>' +
@@ -973,13 +914,10 @@ Viagem.previewAutonomia = function () {
       : '');
 };
 
-
 /* =====================================================================
    9 — RESUMO DO PAINEL
    ===================================================================== */
-
 App._renderHubsOriginal = App.renderHubs;
-
 App.renderHubs = function () {
   App._renderHubsOriginal();
 
@@ -1005,157 +943,109 @@ App.renderHubs = function () {
    ===================================================================== */
 Viagem.abrirBuscaRecargas = function () {
   Geo.limpar();
-  var html='<div class="aviso info"><span class="ms">ev_station</span><div><b>Estações de recarga</b>Localize pontos elétricos próximos e abra a navegação.</div></div><div class="form">'+
-    Geo.campo('brEnd','Onde procurar','Cidade, endereço ou CEP','',
-      '<div class="chips" style="margin-top:7px"><div class="chip" onclick="Viagem.usarGpsRecarga()"><span class="ms">my_location</span>Usar minha localização</div></div>')+
-    campo('Raio da busca','<select id="brRaio"><option value="5000">5 km</option><option value="10000" selected>10 km — recomendado</option><option value="20000">20 km</option><option value="40000">40 km</option></select>')+'</div>';
-  UI.modal('Buscar recargas',html,function(){Viagem.executarBuscaRecargas();},'Buscar');
+
+  var html = '<div class="aviso info"><span class="ms">ev_station</span><div><b>Estações de recarga</b>Localize pontos elétricos próximos e abra a navegação.</div></div><div class="form">' +
+    Geo.campo('brEnd', 'Onde procurar', 'Cidade, endereço ou CEP', '',
+      '<div class="chips" style="margin-top:7px"><div class="chip" onclick="Viagem.usarGpsRecarga()"><span class="ms">my_location</span>Usar minha localização</div></div>') +
+    campo('Raio da busca', '<select id="brRaio"><option value="5000">5 km</option><option value="10000" selected>10 km — recomendado</option><option value="20000">20 km</option><option value="40000">40 km</option></select>') + '</div>';
+
+  UI.modal('Buscar recargas', html, function () { Viagem.executarBuscaRecargas(); }, 'Buscar');
 };
+
 Viagem.usarGpsRecarga = function () {
-  if(!navigator.geolocation)return UI.toast('GPS indisponível','erro');
-  Geo.estado('brEnd','carregando');
-  navigator.geolocation.getCurrentPosition(function(p){
-    Viagem.pontoRecarga={lat:p.coords.latitude,lon:p.coords.longitude};
-    var el=$('brEnd');if(el)el.value='Minha localização';
-    Geo.ultimo.brEnd='Minha localização';Geo.estado('brEnd','ok');UI.toast('Localização obtida','ok');
-  },function(){Geo.estado('brEnd','erro');UI.toast('Não consegui acessar a localização','erro');});
+  if (!navigator.geolocation) return UI.toast('GPS indisponível', 'erro');
+  Geo.estado('brEnd', 'carregando');
+
+  navigator.geolocation.getCurrentPosition(function (p) {
+    Viagem.pontoRecarga = { lat: p.coords.latitude, lon: p.coords.longitude };
+    var el = $('brEnd'); if (el) el.value = 'Minha localização';
+    Geo.ultimo.brEnd = 'Minha localização'; Geo.estado('brEnd', 'ok'); UI.toast('Localização obtida', 'ok');
+  }, function () { Geo.estado('brEnd', 'erro'); UI.toast('Não consegui acessar a localização', 'erro'); });
 };
+
 Viagem.executarBuscaRecargas = function () {
-  var endereco=UI.v('brEnd'),raio=UI.n('brRaio')||10000,op={raio:raio};
-  if(Viagem.pontoRecarga && endereco==='Minha localização'){op.lat=Viagem.pontoRecarga.lat;op.lon=Viagem.pontoRecarga.lon;}
-  else {if(!endereco)return UI.toast('Informe onde procurar','erro');op.endereco=endereco;}
-  UI.fecharModal();UI.load(true,'Buscando estações de recarga…');
-  comPrazo(api('buscarRecargas',op),45000,'Serviço de recargas ocupado.')
-    .then(function(r){UI.load(false);Viagem.mostrarRecargas(r);})
-    .catch(function(e){UI.load(false);UI.toast(e.message||'Falha ao buscar recargas','erro');});
+  var endereco = UI.v('brEnd'), raio = UI.n('brRaio') || 10000, op = { raio: raio };
+  if (Viagem.pontoRecarga && endereco === 'Minha localização') { op.lat = Viagem.pontoRecarga.lat; op.lon = Viagem.pontoRecarga.lon; }
+  else { if (!endereco) return UI.toast('Informe onde procurar', 'erro'); op.endereco = endereco; }
+
+  UI.fecharModal(); UI.load(true, 'Buscando estações de recarga…');
+  comPrazo(api('buscarRecargas', op), 45000, 'Serviço de recargas ocupado.')
+    .then(function (r) { UI.load(false); Viagem.mostrarRecargas(r); })
+    .catch(function (e) { UI.load(false); UI.toast(e.message || 'Falha ao buscar recargas', 'erro'); });
 };
-Viagem.mostrarRecargas = function (r) {
-  var lista=(r&&r.recargas)||[];
-  if(!lista.length)return UI.modal('Estações de recarga',UI.vazio('ev_station','Nenhuma estação encontrada nesse raio.'),null);
-  var html='<div class="hub-periodo"><span class="ms">ev_station</span>'+lista.length+' estação(ões) · raio '+(r.raioUsado||10)+' km</div><div class="postos-lista">'+
-    lista.map(function(x){var tags=[];if(x.abertoAgora)tags.push('<span class="pi-tag ok">Aberto agora</span>');if(x.rating)tags.push('<span class="pi-tag">★ '+U.num(x.rating,1)+' ('+U.num(x.avaliacoes)+')</span>');
-      var url=x.googleMapsUri||('https://www.google.com/maps/dir/?api=1&destination='+x.lat+','+x.lon);
-      return '<div class="posto-item"><div class="pi-ico recarga"><span class="ms">ev_station</span></div><div class="pi-txt"><b>'+U.esc(x.nome)+'</b><small>'+U.esc(x.endereco||'Endereço não informado')+'</small>'+(tags.length?'<div class="pi-tags">'+tags.join('')+'</div>':'')+'</div><div class="pi-dist"><b>'+U.num(x.desvioKm,1)+'</b><small>km</small><a class="pi-ir" href="'+url+'" target="_blank" rel="noopener"><span class="ms">navigation</span></a></div></div>';}).join('')+'</div>';
-  UI.modal('Estações de recarga',html,null);
-};
+
 Viagem.recargasDaRotaAtual = function () {
-  if(!Viagem.plano || !Viagem.plano.rotas || !Viagem.plano.rotas.length)return UI.toast('Planeje uma rota primeiro','erro');
-  var rota=Viagem.plano.rotas[Viagem.rotaSel||0],alvos=(rota.pontosParada&&rota.pontosParada.length)?rota.pontosParada:(rota.pontosApoio||[]);
-  if(!alvos.length)return Viagem.abrirBuscaRecargas();
-  UI.load(true,'Buscando recargas no trajeto…');
-  comPrazo(api('recargasNasParadas',alvos,15000),50000).then(function(grupos){UI.load(false);var todas=[];(grupos||[]).forEach(function(g){(g.recargas||[]).forEach(function(x){if(!todas.some(function(y){return y.placeId===x.placeId;}))todas.push(x);});});Viagem.mostrarRecargas({recargas:todas,raioUsado:15});}).catch(function(e){UI.load(false);UI.toast(e.message||'Falha ao buscar recargas','erro');});
+  if (!Viagem.plano || !Viagem.plano.rotas || !Viagem.plano.rotas.length) return UI.toast('Planeje uma rota primeiro', 'erro');
+  var rota = Viagem.plano.rotas[Viagem.rotaSel || 0], alvos = (rota.pontosParada && rota.pontosParada.length) ? rota.pontosParada : (rota.pontosApoio || []);
+  if (!alvos.length) return Viagem.abrirBuscaRecargas();
+
+  UI.load(true, 'Buscando recargas no trajeto…');
+  comPrazo(api('recargasNasParadas', alvos, 15000), 50000).then(function (grupos) {
+    UI.load(false); var todas = []; (grupos || []).forEach(function (g) { (g.recargas || []).forEach(function (x) { if (!todas.some(function (y) { return y.placeId === x.placeId; })) todas.push(x); }); });
+    Viagem.mostrarRecargas({ recargas: todas, raioUsado: 15 });
+  }).catch(function (e) { UI.load(false); UI.toast(e.message || 'Falha ao buscar recargas', 'erro'); });
 };
 
 /* ===========================================================
    CARWAY v14.1
    Planejador adaptativo para veículos elétricos
    =========================================================== */
-
-Viagem.configurarVeiculoPlanejador = function(id){
-
+Viagem.configurarVeiculoPlanejador = function (id) {
   var v = U.veic(id) || U.veicAtual();
-
-  if(!v) return;
+  if (!v) return;
 
   var eletrico =
-    String(v.combustivel || '')
-      .toLowerCase()
-      .indexOf('elétr') >= 0 ||
-    String(v.combustivel || '')
-      .toLowerCase()
-      .indexOf('eletr') >= 0;
+    String(v.combustivel || '').toLowerCase().indexOf('elétr') >= 0 ||
+    String(v.combustivel || '').toLowerCase().indexOf('eletr') >= 0;
 
   var km = $('pKmL');
   var tanque = $('pTanque');
 
-  if(eletrico){
-
-    if(km){
-      var media =
-        Number(
-          (v.consumo || {}).mediaEficiencia ||
-          (v.consumo || {}).mediaKmL ||
-          0
-        );
-
-      if(media > 0){
-        km.value = media;
-      }
+  if (eletrico) {
+    if (km) {
+      var media = Number((v.consumo || {}).mediaEficiencia || (v.consumo || {}).mediaKmL || 0);
+      if (media > 0) { km.value = media; }
     }
-
-    if(tanque){
-      tanque.value = Number(v.tanque || 0) || '';
-    }
+    if (tanque) { tanque.value = Number(v.tanque || 0) || ''; }
 
     var lbl;
+    lbl = km && km.parentNode ? km.parentNode.querySelector('label') : null;
+    if (lbl) { lbl.textContent = 'Eficiência (km/kWh)'; }
 
-    lbl = km && km.parentNode
-      ? km.parentNode.querySelector('label')
-      : null;
-
-    if(lbl){
-      lbl.textContent = 'Eficiência (km/kWh)';
-    }
-
-    lbl = tanque && tanque.parentNode
-      ? tanque.parentNode.querySelector('label')
-      : null;
-
-    if(lbl){
-      lbl.textContent = 'Capacidade da bateria (kWh)';
-    }
+    lbl = tanque && tanque.parentNode ? tanque.parentNode.querySelector('label') : null;
+    if (lbl) { lbl.textContent = 'Capacidade da bateria (kWh)'; }
 
     lbl = $('pPreco');
-
-    if(lbl && lbl.parentNode){
+    if (lbl && lbl.parentNode) {
       var l = lbl.parentNode.querySelector('label');
-
-      if(l){
-        l.textContent = 'Preço da energia (R$/kWh)';
-      }
+      if (l) { l.textContent = 'Preço da energia (R$/kWh)'; }
     }
-
   }
 
-  if(typeof Viagem.previewAutonomia === 'function'){
+  if (typeof Viagem.previewAutonomia === 'function') {
     Viagem.previewAutonomia();
   }
 };
 
-(function(){
-
+(function () {
   var abrirOriginal = Viagem.abrirPlanejador;
-
-  Viagem.abrirPlanejador = function(){
-
+  Viagem.abrirPlanejador = function () {
     abrirOriginal();
-
-    setTimeout(function(){
-
+    setTimeout(function () {
       var veic = U.veicAtual();
-
-      if(veic){
+      if (veic) {
         Viagem.configurarVeiculoPlanejador(veic.id);
       }
-
       var originalTroca = UI._aoTrocarVeic;
-
-      UI._aoTrocarVeic = function(id){
-
-        if(typeof originalTroca === 'function'){
+      UI._aoTrocarVeic = function (id) {
+        if (typeof originalTroca === 'function') {
           originalTroca(id);
         }
-
         Viagem.configurarVeiculoPlanejador(id);
-
       };
-
-    },150);
-
+    }, 150);
   };
-
 })();
-
 
 /* =====================================================================
    CARWAY v14.2 - PLANEJADOR ELETRICO E MANUTENCAO ADAPTATIVA
@@ -1165,12 +1055,10 @@ Viagem.configurarVeiculoPlanejador = function(id){
     var s = String(v && v.combustivel || '').toLowerCase();
     return s.indexOf('elétr') >= 0 || s.indexOf('eletr') >= 0;
   }
-
   function ehHibrido(v) {
     var s = String(v && v.combustivel || '').toLowerCase();
     return s.indexOf('híbr') >= 0 || s.indexOf('hibr') >= 0;
   }
-
   function detalheEletrico(v) {
     var c = v && v.consumo || {};
     var lista = Array.isArray(c.porEnergetico) ? c.porEnergetico : [];
@@ -1182,7 +1070,6 @@ Viagem.configurarVeiculoPlanejador = function(id){
     }
     return null;
   }
-
   function mediaEletrica(v) {
     var d = detalheEletrico(v);
     var c = v && v.consumo || {};
@@ -1191,13 +1078,11 @@ Viagem.configurarVeiculoPlanejador = function(id){
       c.mediaEficiencia || c.mediaKmL || 0
     ) || 0;
   }
-
   function capacidadeEletrica(v) {
     return Number(
       v && (v.bateriaKwh || v.capacidadeBateria || v.tanque) || 0
     ) || 0;
   }
-
   function trocarLabel(id, texto) {
     var campo = $(id);
     var label = campo && campo.parentNode
@@ -1216,15 +1101,9 @@ Viagem.configurarVeiculoPlanejador = function(id){
       Number(v.consumo && (v.consumo.mediaEficiencia || v.consumo.mediaKmL) || 0);
     var capacidade = eletrico ? capacidadeEletrica(v) : Number(v.tanque || 0);
 
-    trocarLabel('pKmL', eletrico
-      ? 'Eficiência (km/kWh)'
-      : 'Consumo (' + info.consumo + ')');
-    trocarLabel('pTanque', eletrico
-      ? 'Capacidade da bateria (kWh)'
-      : info.tanque);
-    trocarLabel('pPreco', eletrico
-      ? 'Preço da energia (R$/kWh)'
-      : 'Preço por ' + info.unidade);
+    trocarLabel('pKmL', eletrico ? 'Eficiência (km/kWh)' : 'Consumo (' + info.consumo + ')');
+    trocarLabel('pTanque', eletrico ? 'Capacidade da bateria (kWh)' : info.tanque);
+    trocarLabel('pPreco', eletrico ? 'Preço da energia (R$/kWh)' : 'Preço por ' + info.unidade);
     trocarLabel('pNivel', eletrico ? 'Bateria agora' : 'Tanque agora');
 
     var consumo = $('pKmL');
@@ -1232,9 +1111,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
     if (consumo) consumo.value = media > 0 ? media : '';
     if (tanque) tanque.value = capacidade > 0 ? capacidade : '';
 
-    Viagem.modoApoio = eletrico
-      ? 'recargas'
-      : (ehHibrido(v) ? 'ambos' : 'postos');
+    Viagem.modoApoio = eletrico ? 'recargas' : (ehHibrido(v) ? 'ambos' : 'postos');
 
     var aviso = $('boxAviso');
     if (aviso) {
@@ -1267,13 +1144,11 @@ Viagem.configurarVeiculoPlanejador = function(id){
         if (typeof trocaAnterior === 'function') trocaAnterior(id);
         Viagem.aplicarEnergiaAoPlanejador(id);
       };
-      Viagem.aplicarEnergiaAoPlanejador(
-        seletor ? seletor.value : (U.veicAtual() || {}).id
-      );
+      Viagem.aplicarEnergiaAoPlanejador(seletor ? seletor.value : (U.veicAtual() || {}).id);
     }, 150);
   };
 
-/**
+  /**
    * Verifica se a rota e viavel para um veiculo eletrico, comparando
    * a autonomia disponivel com a distancia entre os pontos que tem
    * estacao de recarga.
@@ -1288,24 +1163,19 @@ Viagem.configurarVeiculoPlanejador = function(id){
 
     var eficiencia = UI.n('pKmL');
     if (eficiencia <= 0) {
-      eficiencia = Number(
-        consumoV.mediaEficiencia || consumoV.mediaKmL || 0
-      ) || 0;
+      eficiencia = Number(consumoV.mediaEficiencia || consumoV.mediaKmL || 0) || 0;
     }
 
     var capacidade = UI.n('pTanque');
     if (capacidade <= 0) {
-      capacidade = Number(
-        v.bateriaKwh || v.capacidadeBateria || v.tanque || 0
-      ) || 0;
+      capacidade = Number(v.bateriaKwh || v.capacidadeBateria || v.tanque || 0) || 0;
     }
 
     var nivel = UI.n('pNivel') || 100;
     var reserva = UI.n('pReserva') || 15;
 
     var autonomiaCheia = eficiencia * capacidade * (1 - reserva / 100);
-    var autonomiaInicial = eficiencia * capacidade *
-      Math.max(0, nivel - reserva) / 100;
+    var autonomiaInicial = eficiencia * capacidade * Math.max(0, nivel - reserva) / 100;
 
     if (autonomiaCheia <= 0) {
       var faltando = [];
@@ -1325,10 +1195,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
       : ((rota && rota.pontosParada) || []);
 
     if (!pontos.length) {
-      UI.toast(
-        'A rota não forneceu pontos suficientes para verificar recargas.',
-        'erro'
-      );
+      UI.toast('A rota não forneceu pontos suficientes para verificar recargas.', 'erro');
       return Promise.resolve(false);
     }
 
@@ -1342,7 +1209,6 @@ Viagem.configurarVeiculoPlanejador = function(id){
       UI.load(false);
       grupos = grupos || [];
 
-      /* Km dos pontos que realmente tem estacao de recarga */
       var posicoes = [];
       grupos.forEach(function (grupo) {
         if ((grupo.recargas || []).length) {
@@ -1350,24 +1216,17 @@ Viagem.configurarVeiculoPlanejador = function(id){
         }
       });
 
-      posicoes = posicoes
-        .filter(function (km) { return km > 0; })
-        .sort(function (a, b) { return a - b; });
+      posicoes = posicoes.filter(function (km) { return km > 0; }).sort(function (a, b) { return a - b; });
 
-      var total = Number(
-        (rota && (rota.km || rota.distanciaKm || rota.distancia)) || 0
-      ) || 0;
+      var total = Number((rota && (rota.km || rota.distanciaKm || rota.distancia)) || 0) || 0;
 
-      /* Maior trecho sem recarga */
       var anterior = 0;
       var maiorTrecho = 0;
-
       posicoes.forEach(function (km) {
         var trecho = km - anterior;
         if (trecho > maiorTrecho) maiorTrecho = trecho;
         anterior = km;
       });
-
       if (total > 0) {
         var trechoFinal = total - anterior;
         if (trechoFinal > maiorTrecho) maiorTrecho = trechoFinal;
@@ -1396,15 +1255,13 @@ Viagem.configurarVeiculoPlanejador = function(id){
         capacidadeUsada: capacidade
       };
 
-      /* Explica o motivo real da inviabilidade */
       var motivo = '';
       if (!viavel) {
         if (!posicoes.length) {
-          motivo = 'Nenhuma estação de recarga foi localizada ao longo ' +
-            'do trajeto.';
+          motivo = 'Nenhuma estação de recarga foi localizada ao longo do trajeto.';
         } else if (primeiroTrecho > autonomiaInicial) {
-          motivo = 'Com a bateria em ' + nivel + '%, a primeira estação ' +
-            'está a ' + Math.round(primeiroTrecho) + ' km, além dos ' +
+          motivo = 'Com a bateria em ' + nivel + '%, a primeira estação está a ' +
+            Math.round(primeiroTrecho) + ' km, além dos ' +
             Math.round(autonomiaInicial) + ' km disponíveis agora.';
         } else {
           motivo = 'Existe um trecho de ' + Math.round(maiorTrecho) +
@@ -1415,36 +1272,27 @@ Viagem.configurarVeiculoPlanejador = function(id){
 
       var html =
         '<div class="aviso ' + (viavel ? 'verde' : '') + '">' +
-        '<span class="ms">' + (viavel ? 'check_circle' : 'warning') +
-        '</span><div>' +
-        '<b>' + (viavel ? 'Viagem elétrica viável'
-                        : 'Viagem elétrica não recomendada') + '</b>' +
+        '<span class="ms">' + (viavel ? 'check_circle' : 'warning') + '</span><div>' +
+        '<b>' + (viavel ? 'Viagem elétrica viável' : 'Viagem elétrica não recomendada') + '</b>' +
         (viavel
-          ? 'Foi encontrada uma sequência de recargas compatível com a ' +
-            'autonomia segura.'
+          ? 'Foi encontrada uma sequência de recargas compatível com a autonomia segura.'
           : motivo) +
         '</div></div>' +
 
         '<div class="cc-grid">' +
-        '<div><b>' + Math.round(autonomiaCheia) + '</b>' +
-        '<small>km autonomia segura</small></div>' +
-        '<div><b>' + Math.round(maiorTrecho) + '</b>' +
-        '<small>km maior trecho</small></div>' +
-        '<div><b>' + posicoes.length + '</b>' +
-        '<small>pontos com recarga</small></div>' +
-        '<div><b>' + Math.round(deficit) + '</b>' +
-        '<small>km de déficit</small></div>' +
+        '<div><b>' + Math.round(autonomiaCheia) + '</b><small>km autonomia segura</small></div>' +
+        '<div><b>' + Math.round(maiorTrecho) + '</b><small>km maior trecho</small></div>' +
+        '<div><b>' + posicoes.length + '</b><small>pontos com recarga</small></div>' +
+        '<div><b>' + Math.round(deficit) + '</b><small>km de déficit</small></div>' +
         '</div>' +
 
         '<div class="cc-linha"><span>Energia prevista na viagem</span>' +
         '<b>' + U.num(energiaNecessaria, 1) + ' kWh</b></div>' +
         '<div class="cc-linha"><span>Base do cálculo</span>' +
-        '<b>' + U.num(eficiencia, 2) + ' km/kWh · ' +
-        U.num(capacidade, 1) + ' kWh</b></div>' +
+        '<b>' + U.num(eficiencia, 2) + ' km/kWh · ' + U.num(capacidade, 1) + ' kWh</b></div>' +
 
-        '<p class="dica">Confirme disponibilidade e compatibilidade do ' +
-        'conector antes da viagem. Em rodovia e no frio a autonomia real ' +
-        'costuma ser menor.</p>';
+        '<p class="dica">Confirme disponibilidade e compatibilidade do conector antes ' +
+        'da viagem. Em rodovia e no frio a autonomia real costuma ser menor.</p>';
 
       UI.modal('Validação da rota elétrica', html, null);
       return viavel;
@@ -1485,14 +1333,12 @@ Viagem.configurarVeiculoPlanejador = function(id){
           var campo = $('pe' + indice);
           return campo && campo.checked;
         });
+
         UI.fecharModal();
         UI.load(true, 'Criando plano…');
         api('criarPlanoPadrao', veiculoId, v.kmAtual || 0, v.tipo, selecionados)
           .then(function () { return App.aposSalvar('Plano específico criado'); })
-          .catch(function (erro) {
-            UI.load(false);
-            UI.toast(erro.message, 'erro');
-          });
+          .catch(function (erro) { UI.load(false); UI.toast(erro.message, 'erro'); });
       }, 'Criar plano');
     }).catch(function (erro) {
       UI.load(false);
@@ -1500,7 +1346,6 @@ Viagem.configurarVeiculoPlanejador = function(id){
     });
   };
 })();
-
 
 /* =====================================================================
    CARWAY v14.3 - ESTACOES DE RECARGA AVANCADAS - GITHUB
@@ -1514,8 +1359,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
   }
 
   function conectores(estacao) {
-    var lista = Array.isArray(estacao && estacao.conectores)
-      ? estacao.conectores : [];
+    var lista = Array.isArray(estacao && estacao.conectores) ? estacao.conectores : [];
     if (!lista.length) return 'Conectores não informados';
     return lista.map(function (c) {
       var texto = c.nome || c.tipo || 'Conector';
@@ -1533,9 +1377,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
   }
 
   function ordenar(lista) {
-    return (lista || []).slice().sort(function (a, b) {
-      return nota(b) - nota(a);
-    });
+    return (lista || []).slice().sort(function (a, b) { return nota(b) - nota(a); });
   }
 
   function contexto() {
@@ -1561,6 +1403,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
     var lista = ordenar(estacoes);
     var melhor = lista[0] || null;
     var potencia = melhor ? n(melhor.potenciaMaximaKw) : 0;
+
     return {
       distancia: distancia,
       energiaTotal: energiaTotal,
@@ -1576,6 +1419,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
   Viagem.mostrarRecargas = function (resultado, rota) {
     resultado = resultado || {};
     var lista = ordenar(resultado.recargas || []);
+
     if (!lista.length) {
       return UI.modal('Estações de recarga',
         UI.vazio('ev_station', 'Nenhuma estação encontrada nesse raio.'), null);
@@ -1585,8 +1429,10 @@ Viagem.configurarVeiculoPlanejador = function(id){
       rota || (Viagem.plano && Viagem.plano.rotas && Viagem.plano.rotas[Viagem.rotaSel || 0]) || {},
       lista
     );
+
     var melhor = resumo.melhorEstacao;
     var melhorId = melhor ? melhor.placeId : '';
+
     var html = '<div class="hub-periodo"><span class="ms">ev_station</span>' +
       lista.length + ' estação(ões) · raio ' + (resultado.raioUsado || 10) + ' km</div>';
 
@@ -1607,6 +1453,7 @@ Viagem.configurarVeiculoPlanejador = function(id){
       var potencia = n(e.potenciaMaximaKw);
       var tempo = minutos(resumo.energiaPorParada, potencia);
       var tags = [];
+
       if (ehMelhor) tags.push('<span class="pt-tag h24">Recomendada</span>');
       if (e.abertoAgora) tags.push('<span class="pt-tag h24">Aberta agora</span>');
       if (n(e.rating) > 0) tags.push('<span class="pt-tag">★ ' + U.num(e.rating, 1) + '</span>');
@@ -1614,7 +1461,9 @@ Viagem.configurarVeiculoPlanejador = function(id){
       if (n(e.conectoresDisponiveis) > 0) {
         tags.push('<span class="pt-tag h24">' + U.num(e.conectoresDisponiveis) + ' disponível(is)</span>');
       }
+
       var url = e.googleMapsUri || (URL_MAPS_DIR + e.lat + ',' + e.lon);
+
       return '<div class="posto-item recarga-avancada' + (ehMelhor ? ' melhor' : '') + '">' +
         '<div class="pi-ico recarga"><span class="ms">ev_station</span></div>' +
         '<div class="pi-txt"><b>' + U.esc(e.nome) + '</b>' +
@@ -1624,11 +1473,11 @@ Viagem.configurarVeiculoPlanejador = function(id){
           U.num(resumo.energiaPorParada, 1) + ' kWh</small>' : '') +
         (tags.length ? '<div class="pi-tags">' + tags.join('') + '</div>' : '') +
         '</div><div class="pi-dist"><b>' + U.num(e.desvioKm, 1) + '</b><small>km</small>' +
-        '<a class="pi-ir" href="' + url + '" target="_blank" rel="noopener">' +
-        '<span class="ms">navigation</span></a></div></div>';
+        '<a class="pi-ir" href="' + url + '" target="_blankn</span></a></div></div>';
     }).join('') + '</div>';
 
     html += '<p class="dica">Potência, conectores e disponibilidade aparecem somente quando informados pela estação. Confirme as condições antes da viagem.</p>';
+
     UI.modal('Estações de recarga', html, null);
   };
 
@@ -1636,9 +1485,11 @@ Viagem.configurarVeiculoPlanejador = function(id){
     if (!Viagem.plano || !Viagem.plano.rotas || !Viagem.plano.rotas.length) {
       return UI.toast('Planeje uma rota primeiro', 'erro');
     }
+
     var rota = Viagem.plano.rotas[Viagem.rotaSel || 0];
     var alvos = rota.pontosParada && rota.pontosParada.length
       ? rota.pontosParada : (rota.pontosApoio || []);
+
     if (!alvos.length) return Viagem.abrirBuscaRecargas();
 
     UI.load(true, 'Buscando recargas no trajeto…');
@@ -1660,5 +1511,198 @@ Viagem.configurarVeiculoPlanejador = function(id){
         UI.load(false);
         UI.toast(erro.message || 'Falha ao buscar recargas', 'erro');
       });
+  };
+})();
+
+/* =====================================================================
+   CARWAY v14.4 - APOIO MISTO PARA HIBRIDOS + CREDITO A OPEN CHARGE MAP
+
+   Este bloco resolve duas pendencias diagnosticadas:
+
+   1) "Viagem.modoApoio" era calculado em v14.2
+      (aplicarEnergiaAoPlanejador) mas nunca lido em lugar nenhum.
+      Hibrido caia sempre em busca so-recarga (herdada do v14.3),
+      nunca via postos de combustivel.
+
+   2) O backend (Codigo.gs v14.4) passou a mesclar Google + Open
+      Charge Map em recargasNasParadas / apoioNasParadas. Isso ja
+      beneficia o veiculo eletrico automaticamente, sem qualquer
+      mudanca aqui. A unica mudanca de front necessaria e o credito
+      visual "Open Charge Map" quando a estacao vier de la, e a
+      busca MISTA (posto + recarga) para hibrido, que precisa de um
+      endpoint novo: apoioNasParadas(pontos, raio, modo).
+
+   Depende do ITEM 2 do backend (Codigo.gs) estar publicado:
+   a funcao apoioNasParadas precisa existir e estar registrada em
+   FUNCOES_PUBLICAS. Sem isso, o botao de hibrido mostra erro de
+   rede ao tentar buscar - o restante do app continua igual.
+   ===================================================================== */
+(function () {
+  function n(v) { return Number(v || 0) || 0; }
+
+  function ehEletrico(v) {
+    var s = String((v && v.combustivel) || '').toLowerCase();
+    return s.indexOf('elétr') >= 0 || s.indexOf('eletr') >= 0;
+  }
+
+  function ehHibrido(v) {
+    var s = String((v && v.combustivel) || '').toLowerCase();
+    return s.indexOf('híbr') >= 0 || s.indexOf('hibr') >= 0;
+  }
+
+  /* Credito de origem do dado - da transparencia e cumpre a
+     exigencia de atribuicao da licenca ODbL da Open Charge Map. */
+  function tagFonte(item) {
+    if (item.fonte === 'OCM') return '<span class="pt-tag">Open Charge Map</span>';
+    if (item.fonte === 'GOOGLE+OCM') return '<span class="pt-tag">Google + OCM</span>';
+    return '';
+  }
+
+  /* Guarda a versao v14.3, usada quando o veiculo e 100% eletrico */
+  var recargasRotaV143 = Viagem.recargasDaRotaAtual;
+
+  /**
+   * Decide, pela propulsao do veiculo da rota, que tipo de apoio
+   * buscar:
+   *   eletrico -> so recarga (fluxo avancado v14.3, ja mesclado
+   *               com Open Charge Map no backend)
+   *   hibrido  -> posto E recarga (novo, endpoint apoioNasParadas)
+   *   demais   -> avisa que este botao e para recarga, e sugere
+   *               a opcao de postos da propria viagem
+   */
+  Viagem.recargasDaRotaAtual = function () {
+    if (!Viagem.plano || !Viagem.plano.rotas || !Viagem.plano.rotas.length) {
+      return UI.toast('Planeje uma rota primeiro', 'erro');
+    }
+
+    var rota = Viagem.plano.rotas[Viagem.rotaSel || 0];
+    var v = U.veic(rota.veiculoId) || U.veic(UI.v('pVeic')) || U.veicAtual() || {};
+
+    if (ehHibrido(v)) {
+      return Viagem.apoioMistoDaRotaAtual(rota, v);
+    }
+
+    if (!ehEletrico(v)) {
+      UI.toast(
+        'Este botão busca estações de recarga. Para postos de ' +
+        'combustível, use a opção "Postos" da viagem.',
+        'erro'
+      );
+      return Promise.resolve(false);
+    }
+
+    /* 100% eletrico: mantem o fluxo avancado da v14.3 */
+    return recargasRotaV143.call(Viagem);
+  };
+
+  /**
+   * Busca postos de combustivel E estacoes de recarga ao longo do
+   * trajeto - usado apenas para veiculos hibridos, que aceitam os
+   * dois tipos de apoio.
+   */
+  Viagem.apoioMistoDaRotaAtual = function (rota, veiculo) {
+    var alvos = (rota.pontosParada && rota.pontosParada.length)
+      ? rota.pontosParada
+      : (rota.pontosApoio || []);
+
+    if (!alvos.length) {
+      UI.toast('A rota não forneceu pontos para buscar apoio', 'erro');
+      return Promise.resolve(false);
+    }
+
+    UI.load(true, 'Buscando postos e recargas no trajeto…');
+
+    return comPrazo(
+      api('apoioNasParadas', alvos, 15000, 'ambos'),
+      60000,
+      'A busca de pontos de apoio demorou demais.'
+    ).then(function (grupos) {
+      UI.load(false);
+      Viagem.mostrarApoioMisto(grupos || [], veiculo);
+      return true;
+    }).catch(function (erro) {
+      UI.load(false);
+      UI.toast(erro.message || 'Falha ao buscar apoio no trajeto', 'erro');
+      return false;
+    });
+  };
+
+  /**
+   * Renderiza posto e recarga lado a lado, agrupados por ponto da
+   * rota e ordenados por desvio. Mostra a fonte do dado quando a
+   * Open Charge Map contribuiu para o resultado.
+   */
+  Viagem.mostrarApoioMisto = function (grupos, veiculo) {
+    var totalPostos = 0;
+    var totalRecargas = 0;
+
+    grupos.forEach(function (g) {
+      totalPostos += (g.postos || []).length;
+      totalRecargas += (g.recargas || []).length;
+    });
+
+    if (!totalPostos && !totalRecargas) {
+      return UI.modal('Apoio no trajeto',
+        UI.vazio('search_off', 'Nenhum posto ou estação de recarga mapeado neste trajeto.'),
+        null);
+    }
+
+    var html =
+      '<div class="aviso info"><span class="ms">minor_crash</span><div>' +
+      '<b>' + U.esc((veiculo && veiculo.nome) || 'Veículo híbrido') + '</b>' +
+      'Como é híbrido, tanto posto de combustível quanto estação de ' +
+      'recarga resolvem. Os dois aparecem abaixo, ordenados pela ' +
+      'proximidade da rota.</div></div>' +
+
+      '<div class="cc-grid">' +
+      '<div><b>' + totalPostos + '</b><small>posto(s)</small></div>' +
+      '<div><b>' + totalRecargas + '</b><small>recarga(s)</small></div>' +
+      '</div>';
+
+    grupos.forEach(function (g, i) {
+      var itens = []
+        .concat((g.recargas || []).map(function (x) { x._tipo = 'RECARGA'; return x; }))
+        .concat((g.postos || []).map(function (x) { x._tipo = 'POSTO'; return x; }));
+
+      if (!itens.length) return;
+
+      itens.sort(function (a, b) { return n(a.desvioKm) - n(b.desvioKm); });
+
+      html += '<h4 class="hub-sec">Ponto ' + (i + 1) + ' · km ' + U.num(g.kmAcum, 1) + '</h4>' +
+        '<div class="lista-postos">' + itens.map(function (x) {
+          var recarga = (x._tipo === 'RECARGA');
+          var tags = [];
+
+          tags.push('<span class="pt-tag' + (recarga ? ' h24' : '') + '">' +
+            (recarga ? 'Recarga' : 'Combustível') + '</span>');
+
+          if (recarga && n(x.potenciaMaximaKw) > 0) {
+            tags.push('<span class="pt-tag">' + U.num(x.potenciaMaximaKw, 0) + ' kW</span>');
+          }
+          if (x.abertoAgora) tags.push('<span class="pt-tag h24">Aberto agora</span>');
+          if (n(x.rating) > 0) tags.push('<span class="pt-tag">★ ' + U.num(x.rating, 1) + '</span>');
+
+          var tagOrigem = tagFonte(x);
+          if (tagOrigem) tags.push(tagOrigem);
+
+          var url = x.googleMapsUri || (URL_MAPS_DIR + x.lat + ',' + x.lon);
+
+          return '<div class="posto-item">' +
+            '<div class="pi-ico' + (recarga ? ' recarga' : '') + '">' +
+            '<span class="ms">' + (recarga ? 'ev_station' : 'local_gas_station') + '</span></div>' +
+            '<div class="pi-txt"><b>' + U.esc(x.nome) + '</b>' +
+            '<small>' + U.esc(x.endereco || 'Endereço não informado') + '</small>' +
+            (tags.length ? '<div class="pi-tags">' + tags.join('') + '</div>' : '') +
+            '</div>' +
+            '<div class="pi-dist"><b>' + U.num(x.desvioKm, 1) + '</b><small>km</small>' +
+            '' + url + '' +
+            '<span class="ms">navigation</span></a></div></div>';
+        }).join('') + '</div>';
+    });
+
+    html += '<p class="dica">Em híbrido, o combustível é o plano B garantido. ' +
+      'A recarga vale quando o desvio é pequeno.</p>';
+
+    UI.modal('Apoio no trajeto', html, null);
   };
 })();
