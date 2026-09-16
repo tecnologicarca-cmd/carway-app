@@ -259,6 +259,12 @@ App.aoTrocarCombustivel = function () {
    4 — LANÇAMENTO DE ABASTECIMENTO / RECARGA
    ===================================================================== */
 
+/**
+ * Formulario de abastecimento / recarga.
+ *
+ * O energetico e escolhido PRIMEIRO, porque e ele que define a
+ * unidade de todos os campos abaixo (L, m3 ou kWh).
+ */
 App.formAbastecimento = function (veicId, id, viagemId) {
   if (!U.temVeiculo()) return;
 
@@ -275,19 +281,18 @@ App.formAbastecimento = function (veicId, id, viagemId) {
 
   var cheio = a.id ? String(a.tanqueCheio).toUpperCase() === 'SIM' : true;
   var vgSel = a.id ? a.viagemId : (viagemId || '');
-
   var eletrico = (combAtual === 'Elétrico');
 
   var html = '<div class="form">' +
 
     UI.seletorVeiculo('fVeic', vSel,
-      eletrico ? 'Qual veículo está carregando?' : 'Qual veículo está abastecendo?') +
+      eletrico ? 'Qual veículo está carregando?'
+               : 'Qual veículo está abastecendo?') +
 
-    /* Combustível primeiro: ele define as unidades dos campos abaixo */
+    /* Energetico primeiro: define as unidades dos campos seguintes */
     campo('Combustível / energia',
       '<select id="fComb" onchange="App.aoTrocarCombAbast()">' +
       Comb.opcoes(combAtual) + '</select>') +
-
     '<p class="dica" id="dicaAbast"></p>' +
 
     '<div class="linha2">' +
@@ -302,7 +307,6 @@ App.formAbastecimento = function (veicId, id, viagemId) {
       '<div><label id="lblQtd">Quantidade (' + c.unidade + ')</label>' +
       '<input id="fLitros" type="number" inputmode="decimal" step="0.001" value="' +
       (a.litros || '') + '" oninput="App.calcAbast()"></div>' +
-
       '<div><label id="lblPreco">Preço por ' + c.unidade + '</label>' +
       '<input id="fPreco" type="number" inputmode="decimal" step="0.001" value="' +
       (a.precoLitro || '') + '" oninput="App.calcAbast()"></div>' +
@@ -313,6 +317,21 @@ App.formAbastecimento = function (veicId, id, viagemId) {
       (a.valorTotal || '') + '" oninput="App.calcAbastInverso()">') +
 
     '<div class="pr-previa" id="previaAbast"></div>' +
+
+    /* ---- Campo novo: distancia percorrida com este energetico ----
+       Visivel apenas em veiculo Flex, GNV ou hibrido. E o que
+       permite ao servidor separar o consumo de cada energetico. */
+    '<div id="boxDistEnergia">' +
+      campo('Distância com este energético (km)',
+        '<input id="fDistEnergia" type="number" inputmode="decimal" ' +
+        'step="0.1" value="' + (a.distanciaCombustivel || '') + '" ' +
+        'placeholder="Ex.: 320" oninput="App.previaDistEnergia()">') +
+      '<p class="dica" id="dicaDistEnergia">' +
+        'Zere o hodômetro parcial ao abastecer e anote aqui quantos km ' +
+        'rodou com este energético. É assim que o app calcula o consumo ' +
+        'separado de cada um.' +
+      '</p>' +
+    '</div>' +
 
     campo(eletrico ? 'Local da recarga' : 'Posto',
       '<input id="fPosto" value="' + U.esc(a.posto) + '" placeholder="' +
@@ -333,7 +352,8 @@ App.formAbastecimento = function (veicId, id, viagemId) {
     '</div>';
 
   UI.modal(
-    id ? 'Editar ' + c.acao.toLowerCase() : 'Nov' + (eletrico ? 'a ' : 'o ') + c.acao.toLowerCase(),
+    id ? 'Editar ' + c.acao.toLowerCase()
+       : 'Nov' + (eletrico ? 'a ' : 'o ') + c.acao.toLowerCase(),
     html,
     function () {
       var comb = UI.v('fComb');
@@ -346,20 +366,30 @@ App.formAbastecimento = function (veicId, id, viagemId) {
         return UI.toast('Informe a quantidade em ' + ci.unidade, 'erro');
       }
 
+      var qtd = UI.n('fLitros');
+      var dist = UI.n('fDistEnergia');
+
       var reg = {
         id: id || '',
         veiculoId: UI.v('fVeic'),
         viagemId: UI.v('fViagem'),
         data: UI.v('fData'),
         km: UI.n('fKm'),
-        litros: UI.n('fLitros'),
+        litros: qtd,
         precoLitro: UI.n('fPreco'),
         valorTotal: UI.n('fTotal') ||
-          Math.round(UI.n('fLitros') * UI.n('fPreco') * 100) / 100,
+          Math.round(qtd * UI.n('fPreco') * 100) / 100,
         posto: UI.v('fPosto'),
         combustivel: comb,
         tanqueCheio: UI.chk('fCheio') ? 'SIM' : 'NAO',
-        obs: UI.v('fObs')
+        obs: UI.v('fObs'),
+
+        /* Campos de energia (v14.3.1) */
+        distanciaCombustivel: dist,
+        origemDistancia: dist > 0 ? 'HODOMETRO_PARCIAL' : 'AGUARDANDO',
+        eficienciaCalculada: (dist > 0 && qtd > 0)
+          ? Math.round((dist / qtd) * 1000) / 1000
+          : 0
       };
 
       UI.fecharModal();
@@ -370,8 +400,13 @@ App.formAbastecimento = function (veicId, id, viagemId) {
         reg,
         ci.acao + ' — ' + Comb.qtd(reg.litros, comb)
       )
-      .then(function () { return App.aposSalvar(ci.acao + ' salv' + (eletrico ? 'a' : 'o')); })
-      .catch(function (e) { UI.load(false); UI.toast(e.message, 'erro'); });
+      .then(function () {
+        return App.aposSalvar(ci.acao + ' salv' + (eletrico ? 'a' : 'o'));
+      })
+      .catch(function (e) {
+        UI.load(false);
+        UI.toast(e.message, 'erro');
+      });
     }
   );
 
@@ -380,25 +415,29 @@ App.formAbastecimento = function (veicId, id, viagemId) {
     if (!nv) return;
 
     var km = $('fKm');
-    if (km && (!km.value || km.value == v.kmAtual)) km.value = nv.kmAtual || '';
+    if (km && (!km.value || km.value == v.kmAtual)) {
+      km.value = nv.kmAtual || '';
+    }
 
     var cb = $('fComb');
     if (cb && nv.combustivel) {
       cb.value = nv.combustivel;
-      App.aoTrocarCombAbast();
     }
 
     setHTML('boxViagem', campo('Vincular à viagem',
       '<select id="fViagem">' + UI.optViagens('', novoId) + '</select>'));
 
     v = nv;
+    App.aoTrocarCombAbast();
   };
 
   setTimeout(App.aoTrocarCombAbast, 70);
 };
 
+
 /**
- * Troca os rótulos de quantidade e preço conforme o combustível.
+ * Ajusta rotulos, unidades e visibilidade conforme o energetico
+ * escolhido e o tipo de veiculo.
  */
 App.aoTrocarCombAbast = function () {
   var nome = UI.v('fComb');
@@ -438,8 +477,62 @@ App.aoTrocarCombAbast = function () {
       : 'Consumo calculado em <b>' + c.consumo + '</b>.';
   }
 
+  /* ---- Distancia por energetico: so faz sentido em veiculo
+     que usa mais de um (Flex, GNV, hibrido). ---- */
+  var veicAtual = U.veic(UI.v('fVeic')) || {};
+  var bruto = String(
+    veicAtual.energeticos || veicAtual.combustivel || ''
+  ).toLowerCase();
+
+  var multi =
+    bruto.indexOf('flex') > -1 ||
+    bruto.indexOf('gnv') > -1 ||
+    bruto.indexOf('híbr') > -1 ||
+    bruto.indexOf('hibr') > -1;
+
+  var boxDist = $('boxDistEnergia');
+  if (boxDist) {
+    boxDist.style.display = multi ? '' : 'none';
+    if (!multi) {
+      var inputDist = $('fDistEnergia');
+      if (inputDist) inputDist.value = '';
+    }
+  }
+
+  App.previaDistEnergia();
   App.previaAbast();
 };
+
+
+/**
+ * Mostra na hora a eficiencia do trecho informado, para o usuario
+ * perceber um erro de digitacao antes de salvar.
+ */
+App.previaDistEnergia = function () {
+  var dica = $('dicaDistEnergia');
+  if (!dica) return;
+
+  var dist = UI.n('fDistEnergia');
+  var qtd = UI.n('fLitros');
+  var c = Comb.info(UI.v('fComb'));
+
+  if (dist <= 0 || qtd <= 0) {
+    dica.innerHTML =
+      'Zere o hodômetro parcial ao abastecer e anote aqui quantos km ' +
+      'rodou com este energético. É assim que o app calcula o consumo ' +
+      'separado de cada um.';
+    return;
+  }
+
+  var ef = Math.round((dist / qtd) * 100) / 100;
+
+  dica.innerHTML =
+    '<span class="ms" style="font-size:14px;vertical-align:middle;' +
+    'color:#22c55e">calculate</span> ' +
+    U.num(dist, 1) + ' km ÷ ' + Comb.qtd(qtd, UI.v('fComb')) +
+    ' = <b>' + U.num(ef, 2) + ' ' + c.consumo + '</b> neste trecho.';
+};
+
 
 /**
  * Mostra o resumo do que será lançado, com a unidade certa.
