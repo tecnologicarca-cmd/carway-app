@@ -560,50 +560,6 @@ App.checarVersao = function () {
   }
 };
 
-/* =====================================================================
-   CARWAY v14.5 - CARREGAMENTO RAPIDO E SALVAMENTO SEM TRAVAR A TELA
-
-   Problema observado: a primeira tela demorava para aparecer, e ao
-   salvar um abastecimento o app continuava girando o spinner mesmo
-   depois do registro ja estar na planilha.
-
-   Causa raiz: App.aposSalvar (e o App.iniciar original) sempre
-   esperava carregarApp() TERMINAR por completo antes de liberar a
-   tela. Essa funcao, no backend, recalcula consumo por veiculo,
-   alertas de manutencao e orcado x realizado de TODAS as viagens -
-   um trabalho pesado que nao tem nada a ver com "o registro foi
-   gravado com sucesso".
-
-   Solucao adotada, seguindo o mesmo padrao ja usado no projeto
-   (sobrescrever com App._algoOriginal = App.algo; App.algo = ...):
-
-     1) App._aplicarSalvoNoDB  - novo. Aplica o registro devolvido
-        pelo servidor direto no DB local, sem esperar recarregar tudo.
-        Chamado automaticamente por _apiTentativa (carway-config.js)
-        sempre que a funcao chamada for 'salvar'.
-
-     2) App.aposSalvar - reescrito. Fecha o overlay de carregamento
-        IMEDIATAMENTE (o registro ja foi salvo quando chegamos aqui).
-        O recalculo de consumo/alertas/orcamento continua rodando,
-        mas em segundo plano, sem bloquear a tela com o spinner.
-
-     3) App.carregar - ganhou um segundo parametro "silencioso".
-        Quando true, atualiza os dados sem mostrar o overlay cheio
-        de "Atualizando...". Usado pelas atualizacoes em segundo
-        plano (pos-salvar e abertura do app).
-
-     4) App.iniciar - reescrito. Mostra o Menu e fecha a splash
-        IMEDIATAMENTE, sem esperar o carregarApp() completo. Os
-        dados pesados (consumo, alertas, series mensais) chegam
-        alguns instantes depois, em segundo plano, e a tela se
-        atualiza sozinha quando chegam.
-
-   Compatibilidade: nenhuma outra funcao do app precisa mudar. Quem
-   chama App.aposSalvar(msg, extra) ou App.carregar(primeira)
-   continua funcionando exatamente igual - o segundo parametro novo
-   de App.carregar e opcional.
-   ===================================================================== */
-
 /**
  * Aplica localmente o registro que acabou de ser salvo, sem esperar
  * o carregarApp() completo. E chamada automaticamente pela camada
@@ -745,25 +701,47 @@ App.carregar = function (primeira, silencioso) {
 };
 
 /**
- * Mostra o Menu e fecha a splash IMEDIATAMENTE, sem esperar o
- * carregarApp() completo terminar. Os dados pesados (consumo,
- * alertas, orcamento de viagens, serie mensal) chegam alguns
- * instantes depois, em segundo plano, e a tela se atualiza sozinha
- * assim que App.carregar() resolver.
+ * v14.8 - Busca o resumo leve PRIMEIRO (so 1 tabela no backend,
+ * sem consumo/alertas/serie), preenche o essencial do Menu na
+ * hora, e SO DEPOIS dispara o carregarApp() completo (pesado) em
+ * segundo plano - sem bloquear a tela que o usuario ja esta vendo.
  */
+App.aplicarResumoRapido = function (d) {
+  if (!d) return;
+  DB.ehMaster = !!d.ehMaster;
+  if (!DB.veiculos || !DB.veiculos.length) {
+    DB.veiculos = (d.veiculos || []).map(function (v) {
+      return {
+        id: v.id, nome: v.nome, placa: v.placa, cor: v.cor, tipo: v.tipo,
+        consumo: {}, kmAtual: 0, qtdAbastecimentos: 0,
+        qtdManutencoes: 0, qtdViagens: 0
+      };
+    });
+  }
+  if (d.hoje) DB.hoje = d.hoje;
+};
+
 App.iniciar = function () {
   var d = new Date();
   FILTRO.ano = d.getFullYear();
   FILTRO.mes = d.getMonth() + 1;
 
-  App.fecharSplash();
-  App.irParaMenu();
-  App.renderMenu();
-
-  return App.carregar(true, true).then(function () {
+  return api('resumoRapido').then(function (d) {
+    App.aplicarResumoRapido(d);
+    App.fecharSplash();
+    App.irParaMenu();
+    App.renderMenu();
+    /* Dados completos em segundo plano - nao trava a tela */
+    App.carregar(true, true).catch(function () {});
     return true;
   }).catch(function () {
-    return false;
+    /* Se o resumo leve falhar por qualquer motivo, cai no
+       fluxo completo normal, sem quebrar o app */
+    return App.carregar(true, true).then(function () {
+      App.irParaMenu();
+      App.renderMenu();
+      return true;
+    }).catch(function () { return false; });
   });
 };
 
