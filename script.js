@@ -3367,50 +3367,101 @@ App.alternarParada = function (paradaId) {
   if (VIAGEM_ABERTA) App.renderParadas(VIAGEM_ABERTA);
 };
 
+/**
+ * Registra o abastecimento/recarga de uma parada planejada.
+ * A unidade acompanha o energetico do veiculo.
+ */
 App.formConcluirParada = function (paradaId) {
   var p = null;
   for (var i = 0; i < App._paradas.length; i++) {
     if (App._paradas[i].id === paradaId) { p = App._paradas[i]; break; }
   }
-  if (!p) return UI.toast('Parada não encontrada','erro');
+  if (!p) return UI.toast('Parada não encontrada', 'erro');
 
   App._paradaAtual = paradaId;
 
   var v = U.veic(p.veiculoId) || {};
 
-  var html = '<div class="aviso info"><span class="ms">local_gas_station</span><div>' +
-    '<b>'+U.esc(p.postoNome || ('Parada ' + p.ordem))+'</b>' +
-    'Previsto: '+U.num(p.litrosPrevisto,1)+' L · '+U.moeda(p.valorPrevisto)+
+  /* Se carway-combustivel.js estiver carregado, usa as unidades
+     corretas. Caso contrario, cai no comportamento antigo (litros). */
+  var temComb = (typeof Comb !== 'undefined');
+  var ce = temComb
+    ? Comb.info(v.combustivel)
+    : {
+        unidade: 'L',
+        consumo: 'km/L',
+        acao: 'Abastecimento',
+        casasQtd: 2,
+        icone: 'local_gas_station'
+      };
+
+  var eletrico = (String(v.combustivel || '') === 'Elétrico');
+  var passoQtd = (ce.casasQtd === 3) ? '0.001' : '0.01';
+
+  var html = '<div class="aviso info"><span class="ms">' + ce.icone +
+    '</span><div>' +
+    '<b>' + U.esc(p.postoNome || ('Parada ' + p.ordem)) + '</b>' +
+    'Previsto: ' + U.num(p.litrosPrevisto, 1) + ' ' + ce.unidade +
+    ' · ' + U.moeda(p.valorPrevisto) +
     '</div></div>' +
+
     '<div class="form">' +
+
     '<div class="linha2">' +
-      campo('Data','<input id="cpData" type="date" value="'+U.hoje()+'">') +
-      campo('KM do painel','<input id="cpKm" type="number" inputmode="numeric" value="'+(v.kmAtual||'')+'">') +
+      campo('Data',
+        '<input id="cpData" type="date" value="' + U.hoje() + '">') +
+      campo('KM do painel',
+        '<input id="cpKm" type="number" inputmode="numeric" value="' +
+        (v.kmAtual || '') + '">') +
     '</div>' +
+
     '<div class="linha2">' +
-      campo('Litros','<input id="cpLitros" type="number" inputmode="decimal" step="0.01" ' +
-        'value="'+(p.litrosPrevisto||'')+'" oninput="App.calcParada()">') +
-      campo('Preço/litro','<input id="cpPreco" type="number" inputmode="decimal" step="0.001" ' +
-        'value="'+(p.precoLitroPrevisto||'')+'" oninput="App.calcParada()">') +
+      campo('Quantidade (' + ce.unidade + ')',
+        '<input id="cpLitros" type="number" inputmode="decimal" step="' +
+        passoQtd + '" value="' + (p.litrosPrevisto || '') +
+        '" oninput="App.calcParada()">') +
+      campo('Preço por ' + ce.unidade,
+        '<input id="cpPreco" type="number" inputmode="decimal" step="0.001" ' +
+        'value="' + (p.precoLitroPrevisto || '') +
+        '" oninput="App.calcParada()">') +
     '</div>' +
-    campo('Valor total (R$)','<input id="cpTotal" type="number" inputmode="decimal" step="0.01" ' +
-      'value="'+(p.valorPrevisto||'')+'" oninput="App.calcParadaInverso()">') +
+
+    campo('Valor total (R$)',
+      '<input id="cpTotal" type="number" inputmode="decimal" step="0.01" ' +
+      'value="' + (p.valorPrevisto || '') +
+      '" oninput="App.calcParadaInverso()">') +
+
     '<div class="pr-previa" id="cpPrevia"></div>' +
+
     '<div class="linha2">' +
-      campo('Combustível','<select id="cpComb">' +
-        ['Gasolina','Etanol','Diesel S10','Diesel S500','GNV'].map(function (c) {
-          return '<option'+(v.combustivel===c?' selected':'')+'>'+c+'</option>';
-        }).join('') + '</select>') +
-      campo('Posto','<input id="cpPosto" value="'+U.esc(p.postoNome||'')+'">') +
+      campo('Combustível / energia',
+        '<select id="cpComb">' +
+        (temComb
+          ? Comb.opcoes(v.combustivel)
+          : ['Gasolina', 'Etanol', 'Diesel S10', 'Diesel S500', 'GNV']
+              .map(function (c) {
+                return '<option' +
+                  (v.combustivel === c ? ' selected' : '') +
+                  '>' + c + '</option>';
+              }).join('')) +
+        '</select>') +
+      campo(eletrico ? 'Local da recarga' : 'Posto',
+        '<input id="cpPosto" value="' + U.esc(p.postoNome || '') + '">') +
     '</div>' +
-    '<div class="switch"><span>Completou o tanque?</span>' +
-    '<input type="checkbox" id="cpCheio" checked></div>' +
-    campo('Observações','<textarea id="cpObs"></textarea>') +
+
+    '<div class="switch"><span>' +
+      (eletrico ? 'Carregou até 100%?' : 'Completou o tanque?') +
+    '</span><input type="checkbox" id="cpCheio" checked></div>' +
+
+    campo('Observações', '<textarea id="cpObs"></textarea>') +
+
     '</div>';
 
-  UI.modal('Registrar abastecimento', html, function () {
+  UI.modal('Registrar ' + ce.acao.toLowerCase(), html, function () {
     var litros = UI.n('cpLitros');
-    if (litros <= 0) return UI.toast('Informe os litros','erro');
+    if (litros <= 0) {
+      return UI.toast('Informe a quantidade em ' + ce.unidade, 'erro');
+    }
 
     var dados = {
       data: UI.v('cpData'),
@@ -3425,42 +3476,53 @@ App.formConcluirParada = function (paradaId) {
     };
 
     UI.fecharModal();
-    UI.load(true,'Registrando abastecimento…');
+    UI.load(true, 'Registrando ' + ce.acao.toLowerCase() + '…');
 
     api('concluirParada', paradaId, dados).then(function (r) {
       var msg = 'Parada ' + r.ordem + ' concluída';
-if (r.diferenca > 0.01) {
-  msg +=
-    ' · economizou ' +
-    U.moeda(r.diferenca);
-} else if (r.diferenca < -0.01) {
-  msg +=
-    ' · ' +
-    U.moeda(Math.abs(r.diferenca)) +
-    ' acima do previsto';
-}
+
+      if (r.diferenca > 0.01) {
+        msg += ' · economizou ' + U.moeda(r.diferenca);
+      } else if (r.diferenca < -0.01) {
+        msg += ' · ' + U.moeda(Math.abs(r.diferenca)) + ' acima do previsto';
+      }
+
       return App.aposSalvar(msg);
     }).catch(function (e) {
-      UI.load(false); UI.toast(e.message,'erro');
+      UI.load(false);
+      UI.toast(e.message, 'erro');
     });
   }, 'Registrar');
 
   setTimeout(App.calcParada, 60);
 };
 
+
 App.calcParada = function () {
-  var l = UI.n('cpLitros'), p = UI.n('cpPreco');
+  var l = UI.n('cpLitros');
+  var p = UI.n('cpPreco');
   var t = $('cpTotal');
   if (t && l > 0 && p > 0) t.value = (l * p).toFixed(2);
   App.previaParada();
 };
 
+
 App.calcParadaInverso = function () {
-  var t = UI.n('cpTotal'), l = UI.n('cpLitros'), p = UI.n('cpPreco');
-  if (t > 0 && l > 0) { var e = $('cpPreco'); if (e) e.value = (t/l).toFixed(3); }
-  else if (t > 0 && p > 0) { var e2 = $('cpLitros'); if (e2) e2.value = (t/p).toFixed(2); }
+  var t = UI.n('cpTotal');
+  var l = UI.n('cpLitros');
+  var p = UI.n('cpPreco');
+
+  if (t > 0 && l > 0) {
+    var e = $('cpPreco');
+    if (e) e.value = (t / l).toFixed(3);
+  } else if (t > 0 && p > 0) {
+    var e2 = $('cpLitros');
+    if (e2) e2.value = (t / p).toFixed(3);
+  }
+
   App.previaParada();
 };
+
 
 App.previaParada = function () {
   var el = $('cpPrevia');
@@ -3468,6 +3530,12 @@ App.previaParada = function () {
 
   var total = UI.n('cpTotal');
   var litros = UI.n('cpLitros');
+
+  /* Unidade do energetico escolhido no proprio formulario */
+  var unidade = 'L';
+  if (typeof Comb !== 'undefined') {
+    unidade = Comb.info(UI.v('cpComb')).unidade;
+  }
 
   var prev = 0;
   for (var i = 0; i < App._paradas.length; i++) {
@@ -3477,56 +3545,27 @@ App.previaParada = function () {
 
   if (total <= 0) { el.innerHTML = ''; return; }
 
-var dif = prev - total;
+  var dif = prev - total;
 
-el.innerHTML =
-  '<div class="pr-lin">' +
-    '<span>Você vai lançar</span>' +
-    '<b>' +
-      U.num(litros, 1) +
-      ' L · ' +
-      U.moeda(total) +
-    '</b>' +
-  '</div>' +
-  (
-    prev > 0
+  el.innerHTML =
+    '<div class="pr-lin">' +
+      '<span>Você vai lançar</span>' +
+      '<b>' + U.num(litros, 1) + ' ' + unidade + ' · ' +
+      U.moeda(total) + '</b>' +
+    '</div>' +
+    (prev > 0
       ? '<div class="pr-lin ' +
-        (
-          dif > 0
-            ? 'bom'
-            : (
-                dif < 0
-                  ? 'ruim'
-                  : ''
-              )
-        ) +
-        '">' +
+        (dif > 0 ? 'bom' : (dif < 0 ? 'ruim' : '')) + '">' +
           '<span>' +
-            (
-              dif > 0
-                ? 'Economia'
-                : (
-                    dif < 0
-                      ? 'Acima do previsto'
-                      : 'No previsto'
-                  )
-            ) +
+            (dif > 0 ? 'Economia'
+                     : (dif < 0 ? 'Acima do previsto' : 'No previsto')) +
           '</span>' +
           '<b>' +
-            (
-              dif > 0
-                ? '+'
-                : (
-                    dif < 0
-                      ? '-'
-                      : ''
-                  )
-            ) +
+            (dif > 0 ? '+' : (dif < 0 ? '−' : '')) +
             U.moeda(Math.abs(dif)) +
           '</b>' +
         '</div>'
-      : ''
-  );
+      : '');
 };
 
 App.vincularAbastParada = function (paradaId) {
