@@ -5943,6 +5943,7 @@ App.abrirConfiguracoesMaster = function () {
     UI.toast(e.message || 'Falha ao carregar organizações', 'erro');
   });
 };
+App._filtroOrgMaster = '';
 
 App.renderPainelMaster = function () {
   var lista = App._organizacoesMaster || [];
@@ -5974,28 +5975,83 @@ App.renderPainelMaster = function () {
       '</div>';
   }
 
-  html += '<h4 class="hub-sec">Organizações</h4>';
-
-  if (!lista.length) {
-    html += UI.vazio('business', 'Nenhuma organização criada ainda.');
-  } else {
-    if (ativas.length) {
-      html += '<h4 class="hub-sec v" style="margin-top:6px">Ativas (' + ativas.length + ')</h4>' +
-        ativas.map(App.cardOrganizacaoMaster).join('');
-    }
-    if (inativas.length) {
-      html += '<h4 class="hub-sec r" style="margin-top:16px">Desativadas (' + inativas.length + ')</h4>' +
-        inativas.map(App.cardOrganizacaoMaster).join('');
-    }
+  /* Busca por nome ou plano - so aparece quando ha mais de 3
+     organizacoes, para nao ocupar espaco a toa numa base pequena */
+  if (lista.length > 3) {
+    html += '<div class="campo-geo" style="margin-bottom:6px">' +
+      '<label>Buscar organização</label>' +
+      '<div class="geo-box">' +
+        '<input id="buscaOrgMaster" placeholder="Nome ou plano…" autocomplete="off" ' +
+        'value="' + U.esc(App._filtroOrgMaster) + '" ' +
+        'oninput="App.filtrarOrgMaster(this.value)">' +
+        '<span class="geo-status"><span class="ms">search</span></span>' +
+      '</div></div>';
   }
+
+  html += '<div id="listaOrgMaster">' + App._renderListaOrgMaster() + '</div>';
 
   html += '<div class="acao-topo" style="margin-top:18px">' +
     '<button class="btn destaque bloco-full" onclick="App.formCriarOrganizacao()">' +
     '<span class="ms">add_business</span> Criar nova organização</button></div>';
 
   UI.modal('Configurações', html, null);
+
+  /* Devolve o foco pro campo de busca apos reabrir o modal,
+     e posiciona o cursor no final do texto ja digitado */
+  var campo = $('buscaOrgMaster');
+  if (campo) {
+    campo.focus();
+    var pos = campo.value.length;
+    campo.setSelectionRange(pos, pos);
+  }
 };
 
+/**
+ * Filtra por nome ou plano, ignorando maiusculas/minusculas e acentos.
+ * So atualiza a lista (nao o modal inteiro), para nao perder o foco
+ * do campo de busca a cada letra digitada.
+ */
+App._normalizarBusca = function (s) {
+  return String(s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
+App.filtrarOrgMaster = function (valor) {
+  App._filtroOrgMaster = valor;
+  setHTML('listaOrgMaster', App._renderListaOrgMaster());
+};
+
+App._renderListaOrgMaster = function () {
+  var lista = App._organizacoesMaster || [];
+  var termo = App._normalizarBusca(App._filtroOrgMaster).trim();
+
+  if (termo) {
+    lista = lista.filter(function (o) {
+      return App._normalizarBusca(o.nome).indexOf(termo) > -1 ||
+             App._normalizarBusca(o.planoNome).indexOf(termo) > -1;
+    });
+  }
+
+  var ativas = lista.filter(function (o) { return String(o.status).toUpperCase() === 'ATIVO'; });
+  var inativas = lista.filter(function (o) { return String(o.status).toUpperCase() !== 'ATIVO'; });
+
+  if (!lista.length) {
+    return termo
+      ? UI.vazio('search_off', 'Nenhuma organização encontrada para "' + U.esc(App._filtroOrgMaster) + '".')
+      : UI.vazio('business', 'Nenhuma organização criada ainda.');
+  }
+
+  var html = '<h4 class="hub-sec">Organizações</h4>';
+  if (ativas.length) {
+    html += '<h4 class="hub-sec v" style="margin-top:6px">Ativas (' + ativas.length + ')</h4>' +
+      ativas.map(App.cardOrganizacaoMaster).join('');
+  }
+  if (inativas.length) {
+    html += '<h4 class="hub-sec r" style="margin-top:16px">Desativadas (' + inativas.length + ')</h4>' +
+      inativas.map(App.cardOrganizacaoMaster).join('');
+  }
+  return html;
+};
 /* ==================== CARTAO DA ORGANIZACAO (substitui o antigo) ==================== */
 
 App.cardOrganizacaoMaster = function (org) {
