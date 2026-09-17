@@ -649,18 +649,13 @@ App.aposSalvar = function (msg, extra) {
  *                              pos-salvar e pela carga inicial, que
  *                              ja tem seu proprio feedback visual).
  */
-
-/* v14.8.1 - Controle da janela de corrida entre resumoRapido()
-   (rapido) e carregarApp() completo (lento), disparados em
-   sequencia no boot. Se o usuario salvar algo enquanto o
-   carregarApp() ainda esta em transito, o snapshot que esta a
-   caminho pode nao conter esse registro ainda - sem isso, o
-   "DB = d" do carregarApp() apagaria silenciosamente o que
-   acabou de ser salvo. */
-App._emVooCarregarApp = false;
-App._pendentesDuranteVoo = [];
 App.carregar = function (primeira, silencioso) {
   if (!primeira && !silencioso) UI.load(true, 'Atualizando…');
+
+  /* v14.8.1 - Marca a janela de risco */
+  App._emVooCarregarApp = true;
+  App._pendentesDuranteVoo = [];
+
   return api('carregarApp').then(function (d) {
     if (!d || typeof d !== 'object') {
       throw new Error('O servidor devolveu dados vazios.');
@@ -668,6 +663,15 @@ App.carregar = function (primeira, silencioso) {
     var base = dbVazio();
     for (var k in base) if (d[k] === undefined || d[k] === null) d[k] = base[k];
     DB = d;
+
+    App._emVooCarregarApp = false;
+    /* v14.8.1 - Reaplica por cima do snapshot novo qualquer
+       registro salvo enquanto o carregarApp() estava em voo. */
+    App._pendentesDuranteVoo.forEach(function (item) {
+      App._aplicarSalvoNoDB(item.tabela, item.registro);
+    });
+    App._pendentesDuranteVoo = [];
+
     APP_PRONTO = true;
     if (primeira && DB.hoje) {
       var p = DB.hoje.split('-');
@@ -687,6 +691,7 @@ App.carregar = function (primeira, silencioso) {
     }
     return d;
   }).catch(function (e) {
+    App._emVooCarregarApp = false;   // <-- adicionar esta linha
     UI.load(false);
     App.fecharSplash();
     var msg = e.message || '';
