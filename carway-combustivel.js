@@ -1706,3 +1706,34 @@ Viagem.configurarVeiculoPlanejador = function (id) {
     UI.modal('Apoio no trajeto', html, null);
   };
 })();
+
+/* =====================================================================
+   CARWAY v14.4.1 - CORRIGE O BOTAO "POSTOS" DO CARD DE VIAGEM SALVA
+
+   Viagem.carregarPostos (script.js, linha 4615) sempre chama
+   api('postosNasParadas', ...) - o endpoint antigo de combustivel,
+   sem checar a propulsao do veiculo. E chamada por
+   Viagem.postosDaRotaSalva (script.js, linha 4037), o botao
+   "Postos" dentro do card do mapa de uma viagem ja salva.
+
+   Nenhum bloco anterior (v14.2/v14.3/v14.4) sobrescreveu esta
+   funcao - confirmado por busca no arquivo inteiro.
+   ===================================================================== */
+(function () {
+  var carregarPostosOriginal = Viagem.carregarPostos;
+
+  Viagem.carregarPostos = function (sel) {
+    var veiculoId = (Viagem.plano && Viagem.plano.veiculoId) ||
+      UI.v('pVeic') || (U.veicAtual() || {}).id;
+    var v = U.veic(veiculoId) || U.veicAtual() || {};
+    var s = String(v.combustivel || '').toLowerCase();
+
+    if (s.indexOf('elétr') >= 0 || s.indexOf('eletr') >= 0) {
+      return Viagem.validarCoberturaEletrica(sel, v);
+    }
+    if (s.indexOf('híbr') >= 0 || s.indexOf('hibr') >= 0) {
+      return Viagem.apoioMistoDaRotaAtual(sel, v);
+    }
+    return carregarPostosOriginal.call(Viagem, sel);
+  };
+})();
