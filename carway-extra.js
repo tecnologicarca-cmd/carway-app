@@ -582,20 +582,23 @@ App._aplicarSalvoNoDB = function (tabela, registro) {
   };
   var chave = mapa[tabela];
   if (!chave || !registro || !registro.id) return;
-
   DB[chave] = DB[chave] || [];
-
   var indice = -1;
   for (var i = 0; i < DB[chave].length; i++) {
     if (String(DB[chave][i].id) === String(registro.id)) { indice = i; break; }
   }
-
   if (indice >= 0) {
     for (var campo in registro) {
       if (registro.hasOwnProperty(campo)) DB[chave][indice][campo] = registro[campo];
     }
   } else {
     DB[chave].push(registro);
+  }
+
+  /* v14.8.1 - Se ha um carregarApp() em voo, guarda este registro
+     para reaplicar assim que a resposta chegar. */
+  if (App._emVooCarregarApp) {
+    App._pendentesDuranteVoo.push({ tabela: tabela, registro: registro });
   }
 
   App.render();
@@ -646,6 +649,16 @@ App.aposSalvar = function (msg, extra) {
  *                              pos-salvar e pela carga inicial, que
  *                              ja tem seu proprio feedback visual).
  */
+
+/* v14.8.1 - Controle da janela de corrida entre resumoRapido()
+   (rapido) e carregarApp() completo (lento), disparados em
+   sequencia no boot. Se o usuario salvar algo enquanto o
+   carregarApp() ainda esta em transito, o snapshot que esta a
+   caminho pode nao conter esse registro ainda - sem isso, o
+   "DB = d" do carregarApp() apagaria silenciosamente o que
+   acabou de ser salvo. */
+App._emVooCarregarApp = false;
+App._pendentesDuranteVoo = [];
 App.carregar = function (primeira, silencioso) {
   if (!primeira && !silencioso) UI.load(true, 'Atualizando…');
   return api('carregarApp').then(function (d) {
