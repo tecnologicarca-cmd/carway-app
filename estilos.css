@@ -1359,6 +1359,10 @@ body.tema-claro .faixa-instalar {
 /* CARWAY v14 - recargas */
 .pi-ico.recarga{background:rgba(34,197,94,.14);color:#22c55e}
 
+.faixa-instalar.destaque-convite {
+  border-color: rgba(34, 197, 94, 0.5);
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.15);
+}
 
 /* =====================================================================
    CARWAY v14.3 - ESTACOES DE RECARGA AVANCADAS
