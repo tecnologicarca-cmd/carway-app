@@ -132,11 +132,31 @@ Offline._espelharNoDB = function (tabela, registro, pendenteId) {
 };
 
 /**
+ * Remove o espelho local (id LOCAL_xxx) criado enquanto o app
+ * estava offline, depois que o registro REAL do servidor já foi
+ * aplicado ao DB — evita a duplicata visual que apareceria por
+ * alguns instantes até o próximo carregamento completo.
+ */
+Offline._removerEspelhoLocal = function (tabela, pendenteId) {
+  var mapa = {
+    Abastecimentos: 'abastecimentos',
+    Manutencoes: 'manutencoes',
+    Despesas: 'despesas'
+  };
+  var destino = mapa[tabela];
+  if (!destino || !DB[destino]) return;
+  var idLocal = 'LOCAL_' + pendenteId;
+  DB[destino] = DB[destino].filter(function (r) { return r.id !== idLocal; });
+};
+
+/**
  * Envia os pendentes, um de cada vez, na ordem em que foram criados.
  *
  * Um de cada vez de propósito: o Apps Script trava a planilha
  * durante a escrita, e disparar tudo junto só gera erro de lock.
  */
+Offline._sincronizando = false;
+
 Offline.sincronizarPendentes = function () {
   if (Offline._sincronizando) return Promise.resolve(false);
   if (!Offline._pendentes.length) return Promise.resolve(true);
@@ -162,18 +182,19 @@ Offline.sincronizarPendentes = function () {
       Offline._gravarPendentes();
       Offline.atualizarBanner();
       Offline.renderSincronizador();
-      if (enviados && typeof UI !== 'undefined' && UI.toast) {
-        UI.toast(
-          enviados + ' lançamento(s) enviado(s)' +
-          (falhas ? ' · ' + falhas + ' com problema' : ''),
-          falhas ? 'erro' : 'ok'
-        );
-      }
       /* v14.5.1 - silencioso=true: nao empilha um segundo overlay
          de carregamento por cima da barra "Enviando…" que ja
          apareceu durante a sincronizacao. */
       if (enviados && typeof App !== 'undefined' && App.carregar) {
         App.carregar(false, true).catch(function () {});
+      }
+      if (falhas > 0 && typeof UI !== 'undefined' && UI.toast) {
+        UI.toast(
+          falhas + ' lançamento(s) não puderam ser sincronizados',
+          'erro'
+        );
+      } else if (enviados > 0 && typeof UI !== 'undefined' && UI.toast) {
+        UI.toast(enviados + ' lançamento(s) enviado(s)', 'ok');
       }
       return Promise.resolve(true);
     }
@@ -181,26 +202,29 @@ Offline.sincronizarPendentes = function () {
     return api('salvar', item.tabela, item.registro)
       .then(function () {
         enviados++;
-        /* v14.5.1 - remove o espelho local (LOCAL_xxx) agora que o
-           registro REAL ja foi aplicado ao DB por
-           App._aplicarSalvoNoDB (chamado automaticamente dentro do
-           api() acima). So removemos DEPOIS da confirmacao, para
-           nunca ficar um instante sem nenhum dos dois na tela. */
+        /* v14.5.1 - remove o espelho LOCAL_xxx agora que o
+           registro real ja foi aplicado ao DB por
+           App._aplicarSalvoNoDB (chamado automaticamente dentro
+           do api() acima). So removemos DEPOIS da confirmacao,
+           para nunca ficar um instante sem nenhum dos dois na
+           tela. */
         Offline._removerEspelhoLocal(item.tabela, item.id);
         Offline._pendentes = Offline._pendentes.filter(function (p) {
           return p.id !== item.id;
         });
         Offline._gravarPendentes();
         Offline._atualizarProgresso(enviados, fila.length);
-        App.render();
         return proximo(indice + 1);
       })
       .catch(function (e) {
+        /* Rede caiu de novo: para tudo e tenta mais tarde,
+           mantendo o item como pendente (não como falha). */
         if (Offline._ehFalhaDeRede(e)) {
           Offline._sincronizando = false;
           Offline.atualizarBanner();
           return Promise.resolve(false);
         }
+        /* Erro de regra: marca como falha para o usuário decidir */
         item.estado = 'falha';
         item.erro = (e && e.message) ? e.message : 'Erro ao enviar';
         item.tentativas = (item.tentativas || 0) + 1;
@@ -210,28 +234,19 @@ Offline.sincronizarPendentes = function () {
       });
   }
 
-  return proximo(0);
+  return proximo(0).catch(function (erro) {
+    Offline._sincronizando = false;
+    Offline._gravarPendentes();
+    Offline.atualizarBanner();
+    if (typeof UI !== 'undefined' && UI.toast) {
+      UI.toast(
+        erro && erro.message ? erro.message : 'Falha na sincronização',
+        'erro'
+      );
+    }
+    return false;
+  });
 };
-
-/**
- * Remove o espelho local (id LOCAL_xxx) criado enquanto o app
- * estava offline, depois que o registro REAL do servidor ja foi
- * aplicado ao DB — evita a duplicata visual que apareceria por
- * alguns instantes ate o proximo carregamento completo.
- */
-Offline._removerEspelhoLocal = function (tabela, pendenteId) {
-  var mapa = {
-    Abastecimentos: 'abastecimentos',
-    Manutencoes: 'manutencoes',
-    Despesas: 'despesas'
-  };
-  var destino = mapa[tabela];
-  if (!destino || !DB[destino]) return;
-  var idLocal = 'LOCAL_' + pendenteId;
-  DB[destino] = DB[destino].filter(function (r) { return r.id !== idLocal; });
-};
-
-Offline._sincronizando = false;
 
 Offline._marcarBannerSincronizando = function () {
   var banner = $('bannerOffline');
@@ -363,25 +378,64 @@ var Instalador = {
     setTimeout(function () { Instalador.talvezConvidar(); }, 9000);
   },
 
+  /**
+   * v14.8 - Mesma lógica de filtro que já existia dentro de
+   * talvezConvidar (não repete pergunta se já instalado, se
+   * adiado, se já roda como PWA, se dentro de app embutido já
+   * visto 1x). Extraída para uma função separada porque agora é
+   * chamada em DOIS momentos: pelo timer de 9s (fluxo antigo) e
+   * logo após aceitar um convite (fluxo novo, mais natural).
+   */
+  podeConvidar: function () {
+    var estado = Instalador._lerEstado();
+    if (estado.instalado) return false;
+    if (estado.adiadoAte && new Date().getTime() < estado.adiadoAte) return false;
+    var amb = Instalador.detectar();
+    if (amb.jaInstalado) return false;
+    if (amb.embutido && estado.visto >= 1) return false;
+    return true;
+  },
+
   talvezConvidar: function () {
     if (typeof APP_PRONTO !== 'undefined' && !APP_PRONTO) return;
-    var estado = Instalador._lerEstado();
-    if (estado.instalado) return;
-    if (estado.adiadoAte && new Date().getTime() < estado.adiadoAte) return;
-    var amb = Instalador.detectar();
-    if (amb.jaInstalado) return;
-    if (amb.embutido && estado.visto >= 1) return;
+    if (!Instalador.podeConvidar()) return;
     Instalador.mostrarFaixa();
   },
 
-  mostrarFaixa: function () {
+  /**
+   * @param {string} [contexto] 'boas-vindas' quando chamada logo
+   *   após aceitar um convite, para adaptar o texto ao momento.
+   *   Sem parâmetro, mantém o texto genérico do fluxo antigo.
+   */
+  mostrarFaixa: function (contexto) {
     if ($('faixaInstalar')) return;
+    var amb = Instalador.detectar();
+
+    /* v14.8 - A mensagem muda conforme o momento: logo após
+       aceitar um convite (contexto = 'boas-vindas'), o tom é mais
+       direto e, se a pessoa está dentro do WhatsApp/Instagram, já
+       avisa que precisa sair de lá primeiro — em vez de deixar
+       isso só para quando ela clicar em "Instalar" e só então
+       descobrir. */
+    var titulo, sub;
+    if (contexto === 'boas-vindas' && amb.embutido) {
+      titulo = 'Antes de continuar, saia do WhatsApp';
+      sub = 'Toque aqui para ver como abrir o CarWay no navegador e instalar';
+    } else if (contexto === 'boas-vindas') {
+      titulo = 'Bem-vindo! Instale o CarWay agora';
+      sub = 'Fica com ícone próprio e abre bem mais rápido';
+    } else {
+      titulo = 'Deixe o CarWay na tela inicial';
+      sub = 'Abre mais rápido, sem precisar procurar o link';
+    }
+
     var html =
-      '<div id="faixaInstalar" class="faixa-instalar">' +
+      '<div id="faixaInstalar" class="faixa-instalar' +
+      (contexto === 'boas-vindas' ? ' destaque-convite' : '') + '">' +
         '<div class="fi-ico"><span class="ms">install_mobile</span></div>' +
         '<div class="fi-txt">' +
-          '<b>Deixe o CarWay na tela inicial</b>' +
-          '<small>Abre mais rápido, sem precisar procurar o link</small>' +
+          '<b>' + titulo + '</b>' +
+          '<small>' + sub + '</small>' +
         '</div>' +
         '<div class="fi-acoes">' +
           '<button class="fi-btn" onclick="Instalador.abrirGuia()">Instalar</button>' +
@@ -390,11 +444,13 @@ var Instalador = {
           '</button>' +
         '</div>' +
       '</div>';
+
     document.body.insertAdjacentHTML('beforeend', html);
     setTimeout(function () {
       var f = $('faixaInstalar');
       if (f) f.classList.add('visivel');
     }, 40);
+
     var estado = Instalador._lerEstado();
     estado.visto = estado.visto + 1;
     Instalador._gravarEstado(estado);
@@ -446,13 +502,13 @@ var Instalador = {
     if (amb.embutido) {
       html =
         '<div class="aviso"><span class="ms">open_in_browser</span><div>' +
-        '<b>Abra no navegador primeiro</b>' +
-        'Você está dentro de outro aplicativo (WhatsApp, Instagram ou ' +
-        'Facebook). Esses navegadores internos não criam atalhos.</div></div>' +
+        '<b>Você abriu por dentro de outro app</b>' +
+        'Para instalar, primeiro precisamos abrir o CarWay no navegador de verdade ' +
+        '(Chrome ou Safari). É rápido, só 2 toques.</div></div>' +
         '<div class="lista" style="margin-top:12px">' +
-          Instalador._passo(1, 'more_vert', 'Toque nos três pontinhos no canto da tela') +
-          Instalador._passo(2, 'open_in_browser', 'Escolha <b>Abrir no navegador</b>') +
-          Instalador._passo(3, 'install_mobile', 'Já no navegador, volte aqui e toque em <b>Instalar</b>') +
+          Instalador._passo(1, 'more_vert', 'Toque nos <b>três pontinhos ⋮</b>, geralmente no canto superior direito') +
+          Instalador._passo(2, 'open_in_browser', 'Escolha <b>Abrir no navegador</b> (ou "Abrir no Chrome" / "Abrir no Safari")') +
+          Instalador._passo(3, 'install_mobile', 'Toque em <b>Instalar</b> de novo — agora vai funcionar certinho') +
         '</div>' + Instalador._blocoLink();
       UI.modal('Abra no navegador', html, null);
       return;
@@ -560,16 +616,43 @@ App.checarVersao = function () {
   }
 };
 
+/* =====================================================================
+   CARWAY v14.5 / v14.8 / v14.8.1 - CARREGAMENTO RAPIDO, SALVAMENTO SEM
+   TRAVAR A TELA, RESUMO LEVE NO BOOT E PROTECAO CONTRA CONDICAO DE
+   CORRIDA ENTRE resumoRapido() E carregarApp().
+
+   Historico das camadas, na ordem em que foram construidas:
+
+   v14.5 - App.aposSalvar deixou de esperar o carregarApp() inteiro
+   terminar antes de liberar a tela. App.carregar ganhou o parametro
+   "silencioso", para atualizar em segundo plano sem reabrir o
+   overlay de carregamento cheio.
+
+   v14.8 - App.iniciar passou a chamar primeiro resumoRapido() (leve,
+   so a tabela Veiculos) para popular o Menu quase instantaneamente,
+   disparando o carregarApp() completo (pesado) em paralelo, sem
+   bloquear a primeira tela.
+
+   v14.8.1 - Corrige uma condicao de corrida introduzida pelo v14.8:
+   se o usuario salvar algo bem no inicio (nos poucos instantes entre
+   o resumoRapido() responder e o carregarApp() completo terminar), o
+   "DB = d" do carregarApp() poderia sobrescrever silenciosamente
+   esse registro, porque o snapshot que o servidor devolve foi
+   capturado ANTES do salvamento chegar la. Agora qualquer registro
+   aplicado enquanto ha um carregarApp() em transito fica guardado e
+   e reaplicado assim que a resposta chega.
+   ===================================================================== */
+
 /**
  * Aplica localmente o registro que acabou de ser salvo, sem esperar
- * o carregarApp() completo. E chamada automaticamente pela camada
- * de rede (carway-config.js) logo apos qualquer api('salvar', ...)
+ * o carregarApp() completo. É chamada automaticamente pela camada
+ * de rede (carway-config.js) logo após qualquer api('salvar', ...)
  * bem-sucedido.
  *
- * So atualiza os campos que vieram na resposta do servidor - campos
- * calculados que so existem no payload completo (consumo do
- * veiculo, qtdViagens, orcado, etc.) ficam intactos ate a proxima
- * atualizacao completa chegar.
+ * Só atualiza os campos que vieram na resposta do servidor — campos
+ * calculados que só existem no payload completo (consumo do
+ * veículo, qtdViagens, orçado, etc.) ficam intactos até a próxima
+ * atualização completa chegar.
  */
 App._aplicarSalvoNoDB = function (tabela, registro) {
   var mapa = {
@@ -582,11 +665,14 @@ App._aplicarSalvoNoDB = function (tabela, registro) {
   };
   var chave = mapa[tabela];
   if (!chave || !registro || !registro.id) return;
+
   DB[chave] = DB[chave] || [];
+
   var indice = -1;
   for (var i = 0; i < DB[chave].length; i++) {
     if (String(DB[chave][i].id) === String(registro.id)) { indice = i; break; }
   }
+
   if (indice >= 0) {
     for (var campo in registro) {
       if (registro.hasOwnProperty(campo)) DB[chave][indice][campo] = registro[campo];
@@ -595,8 +681,9 @@ App._aplicarSalvoNoDB = function (tabela, registro) {
     DB[chave].push(registro);
   }
 
-  /* v14.8.1 - Se ha um carregarApp() em voo, guarda este registro
-     para reaplicar assim que a resposta chegar. */
+  /* v14.8.1 - Se há um carregarApp() em voo, guarda este registro
+     para reaplicar assim que a resposta chegar — o snapshot que
+     está a caminho pode não contê-lo ainda. */
   if (App._emVooCarregarApp) {
     App._pendentesDuranteVoo.push({ tabela: tabela, registro: registro });
   }
@@ -605,10 +692,10 @@ App._aplicarSalvoNoDB = function (tabela, registro) {
 };
 
 /**
- * A gravacao ja terminou com sucesso quando chegamos aqui (o
- * registro ja esta na planilha e ja foi aplicado ao DB local por
+ * A gravação já terminou com sucesso quando chegamos aqui (o
+ * registro já está na planilha e já foi aplicado ao DB local por
  * App._aplicarSalvoNoDB). Por isso liberamos a tela IMEDIATAMENTE,
- * sem esperar o recalculo pesado de consumo, alertas e orcamento -
+ * sem esperar o recálculo pesado de consumo, alertas e orçamento —
  * que agora roda em segundo plano, sem travar a interface com o
  * spinner cheio de novo.
  */
@@ -629,8 +716,8 @@ App.aposSalvar = function (msg, extra) {
     if (typeof extra === 'function') extra();
     return true;
   }).catch(function (e) {
-    /* O registro ja foi salvo - uma falha aqui e so na atualizacao
-       dos totais em segundo plano, nao merece assustar o usuario
+    /* O registro já foi salvo — uma falha aqui é só na atualização
+       dos totais em segundo plano, não merece assustar o usuário
        com um erro grande. */
     if (typeof console !== 'undefined' && console.warn) {
       console.warn('CarWay: falha ao atualizar em segundo plano - ' + e.message);
@@ -640,19 +727,27 @@ App.aposSalvar = function (msg, extra) {
   });
 };
 
+/* v14.8.1 - Controle da janela de corrida. Ver comentário grande
+   acima para o raciocínio completo. */
+App._emVooCarregarApp = false;
+App._pendentesDuranteVoo = [];
+
 /**
  * Recarrega os dados do servidor.
  *
  * @param {boolean} primeira    true na carga inicial do app.
  * @param {boolean} silencioso  true para atualizar sem mostrar o
  *                              overlay "Atualizando…" (usado pelo
- *                              pos-salvar e pela carga inicial, que
- *                              ja tem seu proprio feedback visual).
+ *                              pós-salvar e pela carga inicial, que
+ *                              já tem seu próprio feedback visual).
  */
 App.carregar = function (primeira, silencioso) {
   if (!primeira && !silencioso) UI.load(true, 'Atualizando…');
 
-  /* v14.8.1 - Marca a janela de risco */
+  /* v14.8.1 - Marca a janela de risco: qualquer _aplicarSalvoNoDB
+     que aconteça entre agora e a resposta fica guardado em
+     _pendentesDuranteVoo, para não ser perdido pelo "DB = d"
+     abaixo. */
   App._emVooCarregarApp = true;
   App._pendentesDuranteVoo = [];
 
@@ -666,7 +761,10 @@ App.carregar = function (primeira, silencioso) {
 
     App._emVooCarregarApp = false;
     /* v14.8.1 - Reaplica por cima do snapshot novo qualquer
-       registro salvo enquanto o carregarApp() estava em voo. */
+       registro que foi salvo enquanto o carregarApp() estava em
+       voo. Isso evita perder um lançamento que o usuário fez
+       nesses instantes, só porque o snapshot do servidor foi
+       tirado um pouco antes do salvamento chegar lá. */
     App._pendentesDuranteVoo.forEach(function (item) {
       App._aplicarSalvoNoDB(item.tabela, item.registro);
     });
@@ -691,7 +789,10 @@ App.carregar = function (primeira, silencioso) {
     }
     return d;
   }).catch(function (e) {
-    App._emVooCarregarApp = false;   // <-- adicionar esta linha
+    /* v14.8.1 - Garante que a flag não fique travada em caso de
+       erro de rede/servidor. */
+    App._emVooCarregarApp = false;
+
     UI.load(false);
     App.fecharSplash();
     var msg = e.message || '';
@@ -707,8 +808,8 @@ App.carregar = function (primeira, silencioso) {
     } else if (msg.indexOf('PLANILHA_NAO_CONFIGURADA') === 0 ||
                msg.indexOf('PLANILHA_SEM_ACESSO') === 0) {
       App.erroFatal(
-        'O aplicativo ainda nao foi configurado pelo proprietario. ' +
-        'Peca para ele republicar a implantacao com "Executar como: Eu (proprietario)" ' +
+        'O aplicativo ainda não foi configurado pelo proprietário. ' +
+        'Peça para ele republicar a implantação com "Executar como: Eu (proprietário)" ' +
         'e "Quem tem acesso: Qualquer pessoa".'
       );
     } else {
@@ -719,10 +820,10 @@ App.carregar = function (primeira, silencioso) {
 };
 
 /**
- * v14.8 - Busca o resumo leve PRIMEIRO (so 1 tabela no backend,
- * sem consumo/alertas/serie), preenche o essencial do Menu na
- * hora, e SO DEPOIS dispara o carregarApp() completo (pesado) em
- * segundo plano - sem bloquear a tela que o usuario ja esta vendo.
+ * Aplica o resultado leve de resumoRapido() ao DB, antes do
+ * carregarApp() completo chegar. Só popula DB.veiculos se ainda
+ * estiver vazio — se o usuário já tinha dados (ex.: reabrindo o
+ * app numa aba que já carregou antes), não sobrescreve nada.
  */
 App.aplicarResumoRapido = function (d) {
   if (!d) return;
@@ -739,6 +840,12 @@ App.aplicarResumoRapido = function (d) {
   if (d.hoje) DB.hoje = d.hoje;
 };
 
+/**
+ * v14.8 - Busca o resumo leve PRIMEIRO (só 1 tabela no backend,
+ * sem consumo/alertas/série), preenche o essencial do Menu na
+ * hora, e SÓ DEPOIS dispara o carregarApp() completo (pesado) em
+ * segundo plano — sem bloquear a tela que o usuário já está vendo.
+ */
 App.iniciar = function () {
   var d = new Date();
   FILTRO.ano = d.getFullYear();
@@ -749,12 +856,12 @@ App.iniciar = function () {
     App.fecharSplash();
     App.irParaMenu();
     App.renderMenu();
-    /* Dados completos em segundo plano - nao trava a tela */
+    /* Dados completos em segundo plano — não trava a tela */
     App.carregar(true, true).catch(function () {});
     return true;
   }).catch(function () {
-    /* Se o resumo leve falhar por qualquer motivo, cai no
-       fluxo completo normal, sem quebrar o app */
+    /* Se o resumo leve falhar por qualquer motivo, cai no fluxo
+       completo normal, sem quebrar o app. */
     return App.carregar(true, true).then(function () {
       App.irParaMenu();
       App.renderMenu();
